@@ -79,10 +79,66 @@ export default {
             height: "0",
           },
         },
+        blob: {
+          "0%": {
+            transform: "translate(0px, 0px) scale(1)",
+          },
+          "33%": {
+            transform: "translate(30px, -50px) scale(1.1)",
+          },
+          "66%": {
+            transform: "translate(-20px, 20px) scale(0.9)",
+          },
+          "100%": {
+            transform: "translate(0px, 0px) scale(1)",
+          },
+        },
+        "pulse-glow": {
+          "0%": {
+            filter: "drop-shadow(0 0 0.5rem rgba(79, 70, 229, 0.2))",
+          },
+          "100%": {
+            filter: "drop-shadow(0 0 1rem rgba(79, 70, 229, 0.4))",
+          },
+        },
+        shimmer: {
+          "100%": {
+            transform: "translateX(100%)",
+          },
+        },
+        fadeIn: {
+          "0%": { opacity: "0", transform: "translateY(10px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        float: {
+          "0%": { transform: "translateY(0px)" },
+          "50%": { transform: "translateY(-10px)" },
+          "100%": { transform: "translateY(0px)" },
+        },
+        wiggle: {
+          "0%, 100%": { transform: "rotate(-3deg)" },
+          "50%": { transform: "rotate(3deg)" },
+        },
+        "pulse-slow": {
+          "0%, 100%": { opacity: "0.5" },
+          "50%": { opacity: "0.8" },
+        },
+        "spin-slow": {
+          "0%": { transform: "rotate(0deg)" },
+          "100%": { transform: "rotate(360deg)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        blob: "blob 7s infinite",
+        "pulse-glow": "pulse-glow 2s infinite alternate",
+        shimmer: "shimmer 2s infinite",
+        fadeIn: "fadeIn 0.5s ease-out forwards",
+        float: "float 6s ease-in-out infinite",
+        wiggle: "wiggle 1s ease-in-out",
+        "pulse-slow": "pulse-slow 4s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        "spin-slow": "spin-slow 3s linear infinite",
       },
     },
   },

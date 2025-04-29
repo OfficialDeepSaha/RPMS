@@ -20,21 +20,11 @@ type AuthContextType = {
   isAdmin: boolean;
   loginMutation: UseMutationResult<AuthUser, Error, LoginData>;
   logoutMutation: UseMutationResult<void, Error, void>;
-  registerMutation: UseMutationResult<AuthUser, Error, RegisterData>;
 };
 
 type LoginData = {
   username: string;
   password: string;
-};
-
-type RegisterData = {
-  username: string;
-  password: string;
-  confirmPassword: string;
-  firstName?: string;
-  lastName?: string;
-  email?: string;
 };
 
 export const AuthContext = createContext<AuthContextType | null>(null);
@@ -68,7 +58,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginData) => {
       const res = await apiRequest("POST", "/api/login", credentials);
-      return await res.json();
+      const data = await res.json();
+      // Save JWT token to localStorage
+      if (data.token) {
+        localStorage.setItem("token", data.token);
+      }
+      return data.user;
     },
     onSuccess: (user: AuthUser) => {
       queryClient.setQueryData(["/api/user"], user);
@@ -88,33 +83,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
-  const registerMutation = useMutation({
-    mutationFn: async (data: RegisterData) => {
-      const { confirmPassword, ...credentials } = data;
-      const res = await apiRequest("POST", "/api/register", credentials);
-      return await res.json();
-    },
-    onSuccess: (user: AuthUser) => {
-      queryClient.setQueryData(["/api/user"], user);
-      queryClient.invalidateQueries({ queryKey: ["/api/user/roles"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/user/permissions"] });
-      toast({
-        title: "Registration successful",
-        description: `Welcome${user.firstName ? `, ${user.firstName}` : ""}!`,
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Registration failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
   const logoutMutation = useMutation({
     mutationFn: async () => {
       await apiRequest("POST", "/api/logout");
+      localStorage.removeItem("token");
     },
     onSuccess: () => {
       queryClient.setQueryData(["/api/user"], null);
@@ -142,7 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider
       value={{
-        user,
+        user: user ?? null,
         isLoading,
         error,
         userRoles,
@@ -151,7 +123,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAdmin,
         loginMutation,
         logoutMutation,
-        registerMutation,
       }}
     >
       {children}

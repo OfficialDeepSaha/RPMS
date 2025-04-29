@@ -57,3 +57,87 @@
   }
 }
 
+@layer utilities {
+  /* Blob animations */
+  .animate-blob {
+    animation: blob 7s infinite;
+  }
+
+  .animation-delay-2000 {
+    animation-delay: 2s;
+  }
+
+  .animation-delay-4000 {
+    animation-delay: 4s;
+  }
+
+  @keyframes blob {
+    0% {
+      transform: translate(0px, 0px) scale(1);
+    }
+    33% {
+      transform: translate(30px, -50px) scale(1.1);
+    }
+    66% {
+      transform: translate(-20px, 20px) scale(0.9);
+    }
+    100% {
+      transform: translate(0px, 0px) scale(1);
+    }
+  }
+
+  /* Hover effect for cards */
+  .hover-card-shadow {
+    transition: all 0.2s ease-in-out;
+  }
+  
+  .hover-card-shadow:hover {
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+    transform: translateY(-2px);
+  }
+
+  /* Pulse glow effect */
+  .pulse-glow {
+    animation: pulse-glow 2s infinite alternate;
+  }
+
+  @keyframes pulse-glow {
+    0% {
+      filter: drop-shadow(0 0 0.5rem rgba(79, 70, 229, 0.2));
+    }
+    100% {
+      filter: drop-shadow(0 0 1rem rgba(79, 70, 229, 0.4));
+    }
+  }
+
+  /* Glossy effect */
+  .glossy {
+    background: linear-gradient(
+      120deg,
+      rgba(255, 255, 255, 0.2),
+      rgba(255, 255, 255, 0.05)
+    );
+    backdrop-filter: blur(5px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  /* Scrollbar styling */
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 4px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgba(79, 70, 229, 0.2);
+    border-radius: 4px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: rgba(79, 70, 229, 0.4);
+  }
+}
+
