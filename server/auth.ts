@@ -5,9 +5,13 @@ import session from "express-session";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
-import { User as SelectUser } from "@shared/schema";
+import { User as SelectUser, Role } from "@shared/schema";
 import jwt from "jsonwebtoken";
 import type { Request, Response, NextFunction } from "express";
+import { isMaintenanceModeEnabled, refreshMaintenanceMode } from "./maintenance-check";
+
+// Constants
+const ADMIN_USERNAME = 'admin';
 
 declare global {
   namespace Express {
@@ -49,9 +53,31 @@ export function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
+  // Maintenance mode function already imported from maintenance-flag.ts
+  console.log(`Only user '${ADMIN_USERNAME}' can login when maintenance mode is enabled`);
+  
+  // Check maintenance mode status on startup
+  isMaintenanceModeEnabled().then(enabled => {
+    console.log(`Maintenance mode is currently ${enabled ? 'ENABLED' : 'DISABLED'}`);
+  });
+  
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       try {
+        // MAINTENANCE MODE: Check database for dynamic maintenance mode status
+        if (username !== ADMIN_USERNAME) {
+          // Check maintenance mode dynamically
+          const maintenanceModeEnabled = await isMaintenanceModeEnabled();
+          
+          if (maintenanceModeEnabled) {
+            console.log(`MAINTENANCE MODE: Blocked login attempt for user '${username}'`);
+            return done(null, false, { 
+              message: "System is in maintenance mode. Only administrators can log in at this time." 
+            });
+          }
+        }
+        
+        // NORMAL AUTHENTICATION FLOW CONTINUES FOR ADMIN OR WHEN MAINTENANCE MODE IS OFF
         const user = await storage.getUserByUsername(username);
         
         if (!user) {
@@ -63,18 +89,35 @@ export function setupAuth(app: Express) {
           return done(null, false, { message: "Your account has been deactivated. Please contact an administrator." });
         }
         
-        // For demo purposes, we'll allow the admin user to login with plain password
-        if (username === "admin" && password === "admin") {
+        // Special case for admin user during development
+        if (username === ADMIN_USERNAME && password === "admin") {
+          console.log(`Admin login successful`);
           return done(null, user);
         }
         
-        // For other users, we'll check properly hashed passwords
+        // For other users, check properly hashed passwords
         if (!(await comparePasswords(password, user.password))) {
           return done(null, false, { message: "Invalid username or password" });
         }
         
+        // DOUBLE-CHECK MAINTENANCE MODE
+        // Extra safety check in case the first check was bypassed somehow
+        if (username !== ADMIN_USERNAME) {
+          // Check maintenance mode dynamically again
+          const maintenanceModeEnabled = await isMaintenanceModeEnabled();
+          
+          if (maintenanceModeEnabled) {
+            console.log(`MAINTENANCE MODE: Blocked login at secondary check for user '${username}'`);
+            return done(null, false, { 
+              message: "System is in maintenance mode. Only administrators can log in at this time." 
+            });
+          }
+        }
+        
+        console.log(`User '${username}' login successful`);
         return done(null, user);
       } catch (error) {
+        console.error('Error in authentication strategy:', error);
         return done(error);
       }
     }),
@@ -125,12 +168,26 @@ export function setupAuth(app: Express) {
     */
   });
 
-  app.post("/api/login", (req: Request, res: Response, next: NextFunction) => {
-    passport.authenticate("local", (err: any, user: any, info: any) => {
-      if (err) return next(err);
-      if (!user) {
-        return res.status(401).json({ message: info?.message || "Invalid username or password" });
+  app.post("/api/login", async (req, res, next) => {
+    // Check dynamic maintenance mode BEFORE authentication
+    if (req.body.username !== ADMIN_USERNAME) {
+      // Get current maintenance mode setting
+      const maintenanceModeEnabled = await isMaintenanceModeEnabled();
+      
+      if (maintenanceModeEnabled) {
+        console.log(`Maintenance mode active: Blocked login for non-admin user ${req.body.username}`);
+        return res.status(503).json({
+          error: true,
+          maintenance: true,
+          message: "System is in maintenance mode. Only administrators can log in at this time."
+        });
       }
+    }
+    
+    // Continue with normal authentication for admin or if maintenance mode is off
+    passport.authenticate("local", async (err: any, user: Express.User | false, info: any) => {
+      if (err) return next(err);
+      if (!user) return res.status(400).json({ message: info?.message || "Invalid credentials" });
 
       req.login(user, async (err: any) => {
         if (err) return next(err);
@@ -140,12 +197,38 @@ export function setupAuth(app: Express) {
           lastLogin: new Date()
         });
 
+        // Log login activity for reports and statistics
+        try {
+          const activity = {
+            id: `login_${user.id}_${Date.now()}`, // Add a unique ID
+            type: 'user_login',
+            message: `User ${user.username} logged in`,
+            content: `User ${user.username} logged in`,
+            createdAt: new Date(),
+            userId: String(user.id), // Ensure userId is a string as required by the Activity interface
+            userName: (user.firstName && user.lastName) ? `${user.firstName} ${user.lastName}` : user.username,
+            username: user.username,
+            details: {
+              userId: user.id,
+              username: user.username,
+              method: 'password'
+            }
+          };
+          
+          console.log(`Creating login activity for user ${user.username}`);
+          await storage.saveActivity(activity);
+        } catch (activityError) {
+          console.error('Error logging login activity:', activityError);
+          // Continue with login even if activity logging fails
+        }
+
         // Generate JWT token
         const token = jwt.sign(
           { 
             userId: user.id, 
             username: user.username,
-            status: user.status  // Include status in the token
+            status: user.status,  // Include status in the token
+            profileImage: user.profileImage // Include profile image in the token
           },
           JWT_SECRET,
           { expiresIn: JWT_EXPIRES_IN }
@@ -157,7 +240,8 @@ export function setupAuth(app: Express) {
             id: user.id,
             username: user.username,
             firstName: user.firstName,
-            lastName: user.lastName
+            lastName: user.lastName,
+            profileImage: user.profileImage // Include the profile image URL
           }
         });
       });
@@ -171,14 +255,32 @@ export function setupAuth(app: Express) {
     });
   });
 
-  app.get("/api/user", (req, res) => {
+  app.get("/api/user", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    res.json({ 
-      id: req.user?.id, 
-      username: req.user?.username, 
-      firstName: req.user?.firstName, 
-      lastName: req.user?.lastName 
-    });
+    
+    try {
+      // Get user roles and permissions
+      const roles = await storage.getUserRoles(req.user.id);
+      const permissions = await storage.getUserPermissions(req.user.id);
+      
+      // Check if the user is an administrator
+      const isAdmin = roles.some(role => role.name === 'Administrator');
+      
+      // Include all information in the response
+      res.json({ 
+        id: req.user?.id, 
+        username: req.user?.username, 
+        firstName: req.user?.firstName, 
+        lastName: req.user?.lastName,
+        profileImage: req.user?.profileImage, // Include the profile image URL
+        roles: roles,
+        permissions: permissions,
+        isAdmin: isAdmin
+      });
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      res.status(500).json({ message: 'Failed to fetch complete user data' });
+    }
   });
   
   app.get("/api/user/roles", async (req, res) => {

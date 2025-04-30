@@ -2,9 +2,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 export interface ActivityItem {
   id: string;
-  type: 'user_created' | 'role_updated' | 'permission_added' | 'user_deactivated' | 
-         'role_created' | 'permission_created' | 'user_login' | 'user_updated' | 
-         'permission_removed' | 'role_deleted' | 'user_role_assigned' | 'settings_updated';
+  type: 'user_created' | 'user_updated' | 'user_deactivated' | 'user_deleted' |
+         'role_created' | 'role_updated' | 'role_deleted' |
+         'permission_created' | 'permission_updated' | 'permission_deleted' |
+         'permission_added' | 'permission_removed' |
+         'user_login' | 'user_role_assigned' | 'user_role_removed' |
+         'settings_updated' | string; // Allow any string to accommodate dynamic types
   message: string;
   timestamp: string;
   user: {

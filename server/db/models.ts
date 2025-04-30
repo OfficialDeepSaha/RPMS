@@ -10,6 +10,7 @@ export interface IUser extends Document {
   email: string | null;
   status: string | null;
   lastLogin: Date | null;
+  profileImage: string | null;
 }
 
 // Permission Interface
@@ -55,6 +56,31 @@ export interface IActivityLog extends Document {
   details: Record<string, any>;
 }
 
+// Profile Image Interface
+export interface IProfileImage extends Document {
+  id: string;
+  userId: number;
+  imageUrl: string;
+  filename: string;
+  createdAt: Date;
+  isActive: boolean;
+  metadata?: {
+    originalFilename?: string;
+    mimeType?: string;
+    size?: number;
+  };
+}
+
+// System Settings Interface
+export interface ISystemSettings extends Document {
+  key: string;
+  category: string;
+  value: any;
+  defaultValue: any;
+  lastUpdated: Date;
+  updatedBy: number;
+}
+
 // Create a counter model for auto-incrementing IDs
 interface ICounter extends Document {
   _id: string;
@@ -87,7 +113,8 @@ const userSchema = new Schema<IUser>({
   lastName: { type: String, default: null },
   email: { type: String, default: null },
   status: { type: String, default: 'active' },
-  lastLogin: { type: Date, default: Date.now }
+  lastLogin: { type: Date, default: Date.now },
+  profileImage: { type: String, default: null }
 });
 
 // Pre-save hook for auto-incrementing ID
@@ -187,6 +214,37 @@ activityLogSchema.pre('save', async function(next) {
 // Create index on createdAt for faster queries
 activityLogSchema.index({ createdAt: -1 });
 
+// Profile Image Schema
+const profileImageSchema = new Schema<IProfileImage>({
+  id: { type: String, required: true, unique: true },
+  userId: { type: Number, required: true, index: true },
+  imageUrl: { type: String, required: true },
+  filename: { type: String, required: true },
+  createdAt: { type: Date, default: Date.now },
+  isActive: { type: Boolean, default: true },
+  metadata: {
+    originalFilename: { type: String },
+    mimeType: { type: String },
+    size: { type: Number }
+  }
+});
+
+// Add index for faster lookup
+profileImageSchema.index({ userId: 1, isActive: 1 });
+
+// System Settings Schema
+const systemSettingsSchema = new Schema<ISystemSettings>({
+  key: { type: String, required: true, unique: true },
+  category: { type: String, required: true },
+  value: { type: Schema.Types.Mixed, required: true },
+  defaultValue: { type: Schema.Types.Mixed, required: true },
+  lastUpdated: { type: Date, default: Date.now },
+  updatedBy: { type: Number, required: false }
+});
+
+// Create compound index for category and key
+systemSettingsSchema.index({ category: 1, key: 1 });
+
 // Create Models
 export const User = mongoose.model<IUser>('User', userSchema);
 export const Permission = mongoose.model<IPermission>('Permission', permissionSchema);
@@ -194,6 +252,8 @@ export const Role = mongoose.model<IRole>('Role', roleSchema);
 export const RolePermission = mongoose.model<IRolePermission>('RolePermission', rolePermissionSchema);
 export const UserRole = mongoose.model<IUserRole>('UserRole', userRoleSchema);
 export const ActivityLog = mongoose.model<IActivityLog>('ActivityLog', activityLogSchema);
+export const ProfileImage = mongoose.model<IProfileImage>('ProfileImage', profileImageSchema);
+export const SystemSettings = mongoose.model<ISystemSettings>('SystemSettings', systemSettingsSchema);
 
 // Export types
 export type UserType = IUser;
@@ -201,4 +261,6 @@ export type PermissionType = IPermission;
 export type RoleType = IRole;
 export type RolePermissionType = IRolePermission;
 export type UserRoleType = IUserRole;
-export type ActivityLogType = IActivityLog; 
+export type ActivityLogType = IActivityLog;
+export type ProfileImageType = IProfileImage;
+export type SystemSettingsType = ISystemSettings;

@@ -2,14 +2,15 @@ import session from 'express-session';
 import createMemoryStore from 'memorystore';
 import { IStorage } from './storage';
 import {
-  User, Permission, Role, RolePermission, UserRole, ActivityLog,
+  User, Permission, Role, RolePermission, UserRole, ActivityLog, SystemSettings,
   type UserType, type PermissionType, type RoleType,
-  type RolePermissionType, type UserRoleType, type ActivityLogType
+  type RolePermissionType, type UserRoleType, type ActivityLogType, type SystemSettingsType
 } from './db/models';
 import { scrypt, randomBytes, timingSafeEqual } from 'crypto';
 import { promisify } from 'util';
 import { Activity } from './models';
 import { v4 as uuidv4 } from 'uuid';
+import { ProfileImage } from './db/models'; // Import ProfileImage model
 
 const MemoryStore = createMemoryStore(session);
 const scryptAsync = promisify(scrypt);
@@ -40,6 +41,8 @@ export class MongoStorage implements IStorage {
       
       // Skip initialization if we already have data
       if (permissionCount > 0) {
+        // Initialize system settings if they don't exist already
+        await this.initializeSystemSettings();
         return;
       }
 
@@ -189,13 +192,13 @@ export class MongoStorage implements IStorage {
     return user ? user.toObject() : undefined;
   }
 
-  async deleteUser(id: number): Promise<boolean> {
-    const result = await User.deleteOne({ id });
+  async deleteUser(id: number): Promise<void> {
+    const user = await User.findOne({ id });
+    if (!user) return;
     
-    // Also delete related user roles
+    await User.deleteOne({ id });
+    // Also remove their user roles
     await UserRole.deleteMany({ userId: id });
-    
-    return result.deletedCount > 0;
   }
 
   // Permission methods
@@ -365,6 +368,18 @@ export class MongoStorage implements IStorage {
     return roles.map(r => r.toObject());
   }
 
+  async countUsersWithRole(roleId: number): Promise<number> {
+    try {
+      // Count documents in the userRoles collection that match the roleId
+      const count = await UserRole.countDocuments({ roleId });
+      console.log(`Count of users with role ID ${roleId}: ${count}`);
+      return count;
+    } catch (error) {
+      console.error('Error in countUsersWithRole:', error);
+      return 0;
+    }
+  }
+
   // Combined operations
   async getUserPermissions(userId: number): Promise<PermissionType[]> {
     // Get all roles for the user
@@ -531,7 +546,6 @@ export class MongoStorage implements IStorage {
         console.log("No activity logs found in ActivityLog collection");
         
         // As a fallback, try to find data by another approach
-        // For example, if the database has a different schema than expected
         try {
           // This is a more flexible approach that might catch activities stored differently
           const db = ActivityLog.db;
@@ -610,4 +624,306 @@ export class MongoStorage implements IStorage {
     console.log('Deleting activity:', id);
     return true;
   }
-} 
+  
+  async countActivities(query: Record<string, any>): Promise<number> {
+    try {
+      // Count activities that match the query
+      const count = await ActivityLog.countDocuments(query);
+      
+      if (count === 0) {
+        // As a fallback, try to find data by another approach
+        try {
+          const db = ActivityLog.db;
+          const activityCollection = db.collection('activitylogs'); // Try lowercase collection name
+          
+          if (activityCollection) {
+            const fallbackCount = await activityCollection.countDocuments(query);
+            return fallbackCount;
+          }
+        } catch (fallbackError) {
+          console.error('Error in fallback activity count:', fallbackError);
+        }
+      }
+      
+      return count;
+    } catch (error) {
+      console.error('Error counting activities:', error);
+      return 0;
+    }
+  }
+
+  // Profile image methods
+  async saveProfileImage(profileData: {
+    userId: number;
+    imageUrl: string;
+    filename: string;
+    metadata?: {
+      originalFilename?: string;
+      mimeType?: string;
+      size?: number;
+    }
+  }): Promise<any> {
+    // First deactivate any existing profile images for this user
+    await this.deactivateProfileImages(profileData.userId);
+    
+    // Generate a unique ID for this profile image
+    const id = `profile_${profileData.userId}_${Date.now()}`;
+    
+    // Create the new profile image
+    const profileImage = await ProfileImage.create({
+      id,
+      userId: profileData.userId,
+      imageUrl: profileData.imageUrl,
+      filename: profileData.filename,
+      createdAt: new Date(),
+      isActive: true,
+      metadata: profileData.metadata
+    });
+    
+    // Update the user's profile with the new image URL
+    await User.findOneAndUpdate(
+      { id: profileData.userId },
+      { $set: { profileImage: profileData.imageUrl } },
+      { new: true } // This ensures the updated document is returned
+    );
+    
+    // Double check that the user has been updated
+    console.log(`Updated user ${profileData.userId} with profile image: ${profileData.imageUrl}`);
+    
+    // To ensure the update is visible on page refresh, verify it one more time
+    const updatedUser = await User.findOne({ id: profileData.userId });
+    console.log('User after update:', {
+      id: updatedUser?.id,
+      profileImage: updatedUser?.profileImage
+    });
+    
+    return profileImage;
+  }
+
+  async getActiveProfileImage(userId: number): Promise<any | null> {
+    return ProfileImage.findOne({ userId, isActive: true }).lean();
+  }
+
+  async getUserProfileImages(userId: number, limit: number = 10): Promise<any[]> {
+    return ProfileImage.find({ userId })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+  }
+
+  async deactivateProfileImages(userId: number): Promise<void> {
+    await ProfileImage.updateMany(
+      { userId, isActive: true },
+      { $set: { isActive: false } }
+    );
+  }
+
+  // System Settings Methods
+  private async initializeSystemSettings() {
+    // Define default settings
+    const defaultSettings = [
+      {
+        key: 'systemName',
+        category: 'general',
+        value: 'RoleSphere',
+        defaultValue: 'RoleSphere',
+      },
+      {
+        key: 'adminEmail',
+        category: 'general',
+        value: 'admin@rolesphere.com',
+        defaultValue: 'admin@rolesphere.com',
+      },
+      {
+        key: 'dateFormat',
+        category: 'general',
+        value: 'MM/DD/YYYY',
+        defaultValue: 'MM/DD/YYYY',
+      },
+      {
+        key: 'defaultLanguage',
+        category: 'general',
+        value: 'English',
+        defaultValue: 'English',
+      },
+      {
+        key: 'maintenanceMode',
+        category: 'general',
+        value: false,
+        defaultValue: false,
+      },
+      {
+        key: 'sessionTimeout',
+        category: 'security',
+        value: 30,
+        defaultValue: 30,
+      },
+      {
+        key: 'passwordMinLength',
+        category: 'security',
+        value: 10,
+        defaultValue: 8,
+      },
+      {
+        key: 'passwordComplexity',
+        category: 'security',
+        value: 'medium',
+        defaultValue: 'medium',
+      },
+      {
+        key: 'twoFactorAuth',
+        category: 'security',
+        value: false,
+        defaultValue: false,
+      },
+      {
+        key: 'loginAttempts',
+        category: 'security',
+        value: 5,
+        defaultValue: 5,
+      },
+      {
+        key: 'emailNotifications',
+        category: 'notifications',
+        value: true,
+        defaultValue: true,
+      },
+      {
+        key: 'pushNotifications',
+        category: 'notifications',
+        value: false,
+        defaultValue: false,
+      },
+      {
+        key: 'loginAlerts',
+        category: 'notifications',
+        value: true,
+        defaultValue: true,
+      },
+      {
+        key: 'roleChangeAlerts',
+        category: 'notifications',
+        value: true,
+        defaultValue: true,
+      },
+      {
+        key: 'permissionChangeAlerts',
+        category: 'notifications',
+        value: false,
+        defaultValue: false,
+      },
+      {
+        key: 'systemUpdates',
+        category: 'notifications',
+        value: true,
+        defaultValue: true,
+      }
+    ];
+    
+    // Insert settings if they don't exist
+    for (const setting of defaultSettings) {
+      const exists = await SystemSettings.findOne({ key: setting.key });
+      if (!exists) {
+        await SystemSettings.create({
+          ...setting,
+          lastUpdated: new Date(),
+          updatedBy: 1 // Admin user
+        });
+      }
+    }
+  }
+
+  async getSetting(key: string): Promise<SystemSettingsType | null> {
+    return SystemSettings.findOne({ key }).lean();
+  }
+  
+  async getSettingsByCategory(category: string): Promise<SystemSettingsType[]> {
+    return SystemSettings.find({ category }).sort({ key: 1 }).lean();
+  }
+  
+  async getAllSettings(): Promise<Record<string, SystemSettingsType[]>> {
+    const settings = await SystemSettings.find().lean();
+    
+    // Group settings by category
+    const groupedSettings: Record<string, SystemSettingsType[]> = {};
+    
+    settings.forEach(setting => {
+      if (!groupedSettings[setting.category]) {
+        groupedSettings[setting.category] = [];
+      }
+      groupedSettings[setting.category].push(setting);
+    });
+    
+    return groupedSettings;
+  }
+  
+  async updateSetting(key: string, value: any, userId: number = 1): Promise<SystemSettingsType | null> {
+    const updated = await SystemSettings.findOneAndUpdate(
+      { key },
+      { 
+        $set: { 
+          value,
+          lastUpdated: new Date(),
+          updatedBy: userId
+        } 
+      },
+      { new: true }
+    ).lean();
+    
+    // Log the setting update
+    if (updated) {
+      await this.logActivity(
+        'setting_updated',
+        `System setting "${key}" was updated`,
+        userId,
+        { key, newValue: value, previousValue: updated.value }
+      );
+    }
+    
+    return updated;
+  }
+  
+  async updateSettings(settings: { key: string, value: any }[], userId: number = 1): Promise<boolean> {
+    try {
+      for (const setting of settings) {
+        await this.updateSetting(setting.key, setting.value, userId);
+      }
+      return true;
+    } catch (error) {
+      console.error('Error updating settings:', error);
+      return false;
+    }
+  }
+  
+  async resetSettings(category?: string, userId: number = 1): Promise<boolean> {
+    try {
+      const query = category ? { category } : {};
+      const settings = await SystemSettings.find(query);
+      
+      for (const setting of settings) {
+        await SystemSettings.updateOne(
+          { _id: setting._id },
+          { 
+            $set: { 
+              value: setting.defaultValue,
+              lastUpdated: new Date(),
+              updatedBy: userId
+            } 
+          }
+        );
+      }
+      
+      await this.logActivity(
+        'settings_reset',
+        category ? `Settings in category "${category}" were reset to defaults` : 'All system settings were reset to defaults',
+        userId,
+        { category }
+      );
+      
+      return true;
+    } catch (error) {
+      console.error('Error resetting settings:', error);
+      return false;
+    }
+  }
+}

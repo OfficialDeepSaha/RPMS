@@ -12,6 +12,7 @@ export const users = pgTable("users", {
   email: text("email"),
   status: text("status").default("active"),
   lastLogin: timestamp("last_login"),
+  profileImage: text("profile_image"),
 });
 
 // Permissions table

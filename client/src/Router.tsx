@@ -6,6 +6,8 @@ import AdminDashboard from "@/pages/admin/dashboard";
 import AdminUsers from "@/pages/admin/users";
 import AdminRoles from "@/pages/admin/roles";
 import AdminPermissions from "@/pages/admin/permissions";
+import AdminReports from "@/pages/admin/reports";
+import AdminSettings from "@/pages/admin/settings";
 import UserDashboard from "@/pages/user/dashboard";
 import UserReports from "@/pages/user/reports";
 import UserUsers from "@/pages/user/users";
@@ -98,6 +100,8 @@ function AppRouter() {
         <Route path="/admin/users" element={<AdminRoute element={<AdminUsers />} />} />
         <Route path="/admin/roles" element={<AdminRoute element={<AdminRoles />} />} />
         <Route path="/admin/permissions" element={<AdminRoute element={<AdminPermissions />} />} />
+        <Route path="/admin/reports" element={<AdminRoute element={<AdminReports />} />} />
+        <Route path="/admin/settings" element={<AdminRoute element={<AdminSettings />} />} />
         
         {/* User Routes - for regular users */}
         <Route path="/user/dashboard" element={<UserRoute element={<UserDashboard />} />} />
