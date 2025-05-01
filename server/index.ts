@@ -7,6 +7,8 @@ import path from 'path';
 import { PORT, NODE_ENV } from './config';
 import { maintenanceMode } from "./middleware/maintenance-mode";
 import maintenanceBlocker from "./maintenance-blocker";
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 
 const app = express();
 // First, parse request body so we can check maintenance mode status
@@ -17,71 +19,8 @@ app.use(cors());
 // Import storage directly (ES modules style)
 import { storage } from "./storage";
 
-// Direct middleware to enforce maintenance mode
-app.use(async (req, res, next) => {
-  // Skip for static assets and allowed paths
-  if (!req.path.startsWith('/api/') || 
-      req.path === '/api/settings/key/maintenanceMode' ||
-      req.path === '/api/logout') {
-    return next();
-  }
-
-  try {
-    console.log(`[MAINTENANCE CHECK] Checking request: ${req.method} ${req.path}`);
-    
-    // Always check database directly for maintenance mode status
-    const maintenanceModeSetting = await storage.getSetting('maintenanceMode');
-    const maintenanceModeEnabled = maintenanceModeSetting?.value === 'true';
-    
-    console.log(`[MAINTENANCE STATUS] Maintenance mode is ${maintenanceModeEnabled ? 'ENABLED' : 'DISABLED'}`);
-    
-    if (maintenanceModeEnabled) {
-      // Special handling for login path
-      if (req.path === '/api/login' && req.method === 'POST') {
-        if (req.body?.username !== 'admin') {
-          console.log(`[MAINTENANCE BLOCK] Blocked login for non-admin user '${req.body?.username}'`);
-          return res.status(503).json({
-            error: true,
-            maintenance: true,
-            message: "System is in maintenance mode. Only administrators can log in."
-          });
-        }
-        console.log(`[MAINTENANCE ALLOW] Allowed admin login attempt`);
-      }
-      // For authenticated requests
-      else if (req.isAuthenticated && req.isAuthenticated()) {
-        const user = req.user as any;
-        
-        // Only allow admin users
-        if (user?.username !== 'admin') {
-          console.log(`[MAINTENANCE BLOCK] Blocked API access to ${req.path} for non-admin user ${user?.username}`);
-          return res.status(503).json({
-            error: true,
-            maintenance: true,
-            message: "System is in maintenance mode. Only administrators can access."
-          });
-        }
-        console.log(`[MAINTENANCE ALLOW] Allowed admin access to ${req.path}`);
-      }
-      // For unauthenticated requests to other endpoints
-      else if (req.path !== '/api/login') {
-        console.log(`[MAINTENANCE BLOCK] Blocked unauthenticated access to ${req.path}`);
-        return res.status(503).json({
-          error: true,
-          maintenance: true,
-          message: "System is in maintenance mode. Only administrators can access."
-        });
-      }
-    }
-    
-    // Continue with the request
-    next();
-  } catch (error) {
-    console.error('Error in maintenance mode middleware:', error);
-    // In case of error, proceed to avoid lockout
-    next();
-  }
-});
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 /* Disabled additional maintenance check - using only maintenanceBlocker now
 app.use(async (req, res, next) => {
@@ -194,10 +133,14 @@ app.use((req, res, next) => {
 
   // Serve static assets in production
   if (NODE_ENV === 'production') {
-    app.use(express.static(path.resolve(__dirname, '../../client/dist')));
+    // Calculate path correctly for ES modules
+    const clientDistPath = path.resolve(__dirname, '../../client/dist');
+    console.log(`Serving static files from: ${clientDistPath}`);
+    
+    app.use(express.static(clientDistPath));
     
     app.get('*', (req, res) => {
-      res.sendFile(path.resolve(__dirname, '../../client/dist', 'index.html'));
+      res.sendFile(path.resolve(clientDistPath, 'index.html'));
     });
   }
 

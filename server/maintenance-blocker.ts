@@ -24,7 +24,8 @@ export default async function maintenanceBlocker(req: Request, res: Response, ne
   try {
     // Get the current maintenance mode setting from database
     const maintenanceSetting = await storage.getSetting('maintenanceMode');
-    const maintenanceModeEnabled = maintenanceSetting?.value === 'true';
+    // Interpret maintenance flag as boolean
+    const maintenanceModeEnabled = maintenanceSetting?.value === true;
     
     // If maintenance mode is not enabled, allow all requests
     if (!maintenanceModeEnabled) {

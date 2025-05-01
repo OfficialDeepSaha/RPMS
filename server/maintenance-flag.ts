@@ -18,7 +18,8 @@ export const ADMIN_USERNAME = 'admin';
 export async function isMaintenanceModeEnabled(): Promise<boolean> {
   try {
     const setting = await storage.getSetting('maintenanceMode');
-    return setting?.value === 'true';
+    // Interpret maintenance flag stored as boolean
+    return setting?.value === true;
   } catch (error) {
     console.error('Error checking maintenance mode setting:', error);
     // Default to false if we can't check

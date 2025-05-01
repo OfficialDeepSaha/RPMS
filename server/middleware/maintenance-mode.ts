@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import { storage } from "../storage";
+import { isMaintenanceModeEnabled, isAdministratorUser, ADMIN_USERNAME } from "../maintenance-check";
 
 /**
  * Debugging function to log detailed information about requests
@@ -14,64 +15,98 @@ function logRequestInfo(req: Request, message: string) {
 /**
  * Middleware to enforce maintenance mode
  * - When maintenance mode is enabled, only admin users can access the system
- * - All other users are blocked with a 503 response
+ * - All other users are redirected to the maintenance page
  */
 export const maintenanceMode = async (req: Request, res: Response, next: NextFunction) => {
-  // Always allow certain paths (necessary for the admin and login functionality)
+  // Always allow public assets, health checks, login and auth routes
   const ALLOWED_PATHS = [
-    '/api/settings/key/maintenanceMode',  // Always allow checking maintenance mode status
-    '/api/login',                        // Login is handled by the login route which has its own checks
-    '/api/logout'                        // Always allow logout
+    '/assets/',
+    '/health', 
+    '/api/health',
+    '/api/settings/key/maintenanceMode',
+    '/api/login',
+    '/api/logout',
+    '/auth',
+    '/maintenance',
+    '/favicon.ico',
+    '.js',
+    '.css',
+    '.png',
+    '.jpg',
+    '.svg',
+    '.woff',
+    '.woff2'
   ];
   
-  if (ALLOWED_PATHS.includes(req.path)) {
-    logRequestInfo(req, `Allowing access to whitelisted path: ${req.path}`);
+  // Skip maintenance check for allowed paths
+  if (ALLOWED_PATHS.some(path => 
+    req.path.startsWith(path) || 
+    req.path.endsWith(path) || 
+    req.path.includes(path)
+  )) {
     return next();
   }
 
   try {
     // Check if maintenance mode is enabled
-    const maintenanceModeSetting = await storage.getSetting('maintenanceMode');
-    const maintenanceModeEnabled = maintenanceModeSetting?.value === 'true';
-    
-    logRequestInfo(req, `Maintenance mode is ${maintenanceModeEnabled ? 'ENABLED' : 'DISABLED'}`);
+    const maintenanceModeEnabled = await isMaintenanceModeEnabled();
     
     if (!maintenanceModeEnabled) {
       // If maintenance mode is not enabled, proceed normally
       return next();
     }
     
-    // In maintenance mode, check if user is authenticated and is admin
-    if (req.isAuthenticated()) {
+    // If user is not authenticated, allow access to client-side routes to show the login page
+    if (!req.isAuthenticated()) {
+      // For API routes, block with a message
+      if (req.path.startsWith('/api/')) {
+        return res.status(503).json({
+          error: true,
+          maintenance: true,
+          message: "System is in maintenance mode. Only administrators can access at this time."
+        });
+      }
+      // For client routes, allow access so React can handle showing maintenance info
+      return next();
+    }
+    
+    // For authenticated users, check if they're admin
+    if (req.user) {
       const user = req.user;
-      logRequestInfo(req, `Checking admin status for user ${user.username}`);
       
-      // First check by username (for immediate admin access)
-      if (user.username === 'admin') {
-        logRequestInfo(req, `Access granted to admin user by username`);
+      // Check by username first (fastest check)
+      if (isAdministratorUser(user.username)) {
+        logRequestInfo(req, `Admin access granted to: ${user.username}`);
         return next();
       }
       
-      // Second check by role (more thorough)
+      // Then check by role (more thorough)
       const userRoles = await storage.getUserRoles(user.id);
       const isAdmin = userRoles.some(role => role.name === 'Administrator');
       
       if (isAdmin) {
-        logRequestInfo(req, `Access granted to admin user by role`);
+        logRequestInfo(req, `Admin role access granted to: ${user.username}`);
         return next();
       }
       
-      logRequestInfo(req, `Access DENIED to non-admin user during maintenance`);
-    } else {
-      logRequestInfo(req, `Access DENIED to unauthenticated user during maintenance`);
+      // Non-admin user trying to access during maintenance
+      logRequestInfo(req, `Access DENIED: Non-admin user ${user.username} during maintenance`);
+      
+      // For API routes, return 503
+      if (req.path.startsWith('/api/')) {
+        return res.status(503).json({
+          error: true,
+          maintenance: true,
+          message: "System is in maintenance mode. Only administrators can access at this time."
+        });
+      }
+      
+      // For client routes, redirect to maintenance page
+      return res.redirect('/maintenance');
     }
     
-    // Block access for non-admin users during maintenance
-    return res.status(503).json({
-      error: true,
-      maintenance: true,
-      message: "System is in maintenance mode. Please try again later."
-    });
+    // Allow client-side routing to handle the request
+    return next();
   } catch (error) {
     console.error('Error in maintenance mode middleware:', error);
     // Proceed if we can't check maintenance mode to avoid blocking everything on error

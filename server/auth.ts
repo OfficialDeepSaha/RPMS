@@ -169,83 +169,102 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/login", async (req, res, next) => {
-    // Check dynamic maintenance mode BEFORE authentication
-    if (req.body.username !== ADMIN_USERNAME) {
-      // Get current maintenance mode setting
+    try {
+      // Check if we're in maintenance mode
       const maintenanceModeEnabled = await isMaintenanceModeEnabled();
+      const isAdminUser = req.body.username === ADMIN_USERNAME;
       
-      if (maintenanceModeEnabled) {
-        console.log(`Maintenance mode active: Blocked login for non-admin user ${req.body.username}`);
+      // In maintenance mode, only allow admin login attempts
+      if (maintenanceModeEnabled && !isAdminUser) {
+        console.log(`MAINTENANCE MODE: Login attempt for non-admin user '${req.body.username}' was blocked`);
         return res.status(503).json({
           error: true,
           maintenance: true,
           message: "System is in maintenance mode. Only administrators can log in at this time."
         });
       }
-    }
-    
-    // Continue with normal authentication for admin or if maintenance mode is off
-    passport.authenticate("local", async (err: any, user: Express.User | false, info: any) => {
-      if (err) return next(err);
-      if (!user) return res.status(400).json({ message: info?.message || "Invalid credentials" });
-
-      req.login(user, async (err: any) => {
+      
+      // Proceed with authentication
+      passport.authenticate("local", async (err: any, user: Express.User | false, info: any) => {
         if (err) return next(err);
+        if (!user) return res.status(401).json({ message: info?.message || "Invalid credentials" });
 
-        // Update last login time
-        await storage.updateUser(user.id, {
-          lastLogin: new Date()
-        });
-
-        // Log login activity for reports and statistics
-        try {
-          const activity = {
-            id: `login_${user.id}_${Date.now()}`, // Add a unique ID
-            type: 'user_login',
-            message: `User ${user.username} logged in`,
-            content: `User ${user.username} logged in`,
-            createdAt: new Date(),
-            userId: String(user.id), // Ensure userId is a string as required by the Activity interface
-            userName: (user.firstName && user.lastName) ? `${user.firstName} ${user.lastName}` : user.username,
-            username: user.username,
-            details: {
-              userId: user.id,
-              username: user.username,
-              method: 'password'
-            }
-          };
+        // If in maintenance mode, double-check this is an admin account
+        if (maintenanceModeEnabled && user.username !== ADMIN_USERNAME) {
+          const userRoles = await storage.getUserRoles(user.id);
+          const isAdmin = userRoles.some(role => role.name === 'Administrator');
           
-          console.log(`Creating login activity for user ${user.username}`);
-          await storage.saveActivity(activity);
-        } catch (activityError) {
-          console.error('Error logging login activity:', activityError);
-          // Continue with login even if activity logging fails
+          if (!isAdmin) {
+            console.log(`MAINTENANCE MODE: Blocked login for non-admin ${user.username} (secondary check)`);
+            return res.status(503).json({
+              error: true,
+              maintenance: true,
+              message: "System is in maintenance mode. Only administrators can log in at this time."
+            });
+          }
         }
 
-        // Generate JWT token
-        const token = jwt.sign(
-          { 
-            userId: user.id, 
-            username: user.username,
-            status: user.status,  // Include status in the token
-            profileImage: user.profileImage // Include profile image in the token
-          },
-          JWT_SECRET,
-          { expiresIn: JWT_EXPIRES_IN }
-        );
+        req.login(user, async (err: any) => {
+          if (err) return next(err);
 
-        res.status(200).json({
-          token,
-          user: {
-            id: user.id,
-            username: user.username,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            profileImage: user.profileImage // Include the profile image URL
+          // Update last login time
+          await storage.updateUser(user.id, {
+            lastLogin: new Date()
+          });
+
+          // Log login activity for reports and statistics
+          try {
+            const activity = {
+              id: `login_${user.id}_${Date.now()}`, // Add a unique ID
+              type: 'user_login',
+              message: `User ${user.username} logged in`,
+              content: `User ${user.username} logged in`,
+              createdAt: new Date(),
+              userId: String(user.id), // Ensure userId is a string as required by the Activity interface
+              userName: (user.firstName && user.lastName) ? `${user.firstName} ${user.lastName}` : user.username,
+              username: user.username,
+              details: {
+                userId: user.id,
+                username: user.username,
+                method: 'password'
+              }
+            };
+            
+            console.log(`Creating login activity for user ${user.username}`);
+            await storage.saveActivity(activity);
+          } catch (activityError) {
+            console.error('Error logging login activity:', activityError);
+            // Continue with login even if activity logging fails
           }
+
+          // Generate JWT token
+          const token = jwt.sign(
+            { 
+              userId: user.id, 
+              username: user.username,
+              status: user.status,  // Include status in the token
+              profileImage: user.profileImage // Include profile image in the token
+            },
+            JWT_SECRET,
+            { expiresIn: JWT_EXPIRES_IN }
+          );
+
+          res.status(200).json({
+            token,
+            user: {
+              id: user.id,
+              username: user.username,
+              firstName: user.firstName,
+              lastName: user.lastName,
+              profileImage: user.profileImage // Include the profile image URL
+            }
+          });
         });
-      });
-    })(req, res, next);
+      })(req, res, next);
+    } catch (error) {
+      console.error('Error in login process:', error);
+      res.status(500).json({ message: 'An error occurred during login. Please try again.' });
+    }
   });
 
   app.post("/api/logout", (req, res, next) => {

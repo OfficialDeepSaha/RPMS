@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
 import UserLayout from "@/components/layout/user-layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -30,7 +30,8 @@ interface ExtendedRole {
 }
 
 export default function UserDashboard() {
-  const [location] = useLocation();
+  // React Router location includes search query
+  const location = useLocation();
   const { userPermissions, userRoles, isAdmin } = useAuth();
   const [selectedPermission, setSelectedPermission] = useState<string | null>(null);
   const [permissionDetails, setPermissionDetails] = useState<any>(null);
@@ -43,9 +44,9 @@ export default function UserDashboard() {
     }
   }, [isAdmin]);
 
-  // Parse the permission from the URL query parameter
+  // Parse the permission from the URL query parameter when search or permissions change
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(location.search);
     const permissionParam = params.get("permission");
     
     if (permissionParam && userPermissions.some(p => p.name === permissionParam)) {
@@ -65,7 +66,7 @@ export default function UserDashboard() {
     }, 150);
 
     return () => clearTimeout(timer);
-  }, [location, userPermissions]);
+  }, [location.search, userPermissions]);
 
   // Get roles that grant this permission
   const rolesWithPermission = userRoles.filter(role => {

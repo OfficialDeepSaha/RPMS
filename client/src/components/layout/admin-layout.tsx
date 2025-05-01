@@ -23,7 +23,9 @@ import {
   Zap,
   Activity,
   Layers,
+  AlertTriangle,
 } from "lucide-react";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 type MenuItem = {
   name: string;
@@ -87,6 +89,28 @@ export default function AdminLayout({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [animateItems, setAnimateItems] = useState(false);
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
+  
+  // Check maintenance mode status
+  useEffect(() => {
+    const checkMaintenanceMode = async () => {
+      try {
+        const response = await fetch('/api/maintenance/status');
+        if (response.ok) {
+          const data = await response.json();
+          setMaintenanceMode(data.maintenance === true);
+        }
+      } catch (error) {
+        console.error('Error checking maintenance mode:', error);
+      }
+    };
+    
+    checkMaintenanceMode();
+    
+    // Poll for maintenance mode status every 30 seconds
+    const interval = setInterval(checkMaintenanceMode, 30000);
+    return () => clearInterval(interval);
+  }, []);
   
   useEffect(() => {
     // Trigger animation after initial render
@@ -197,57 +221,55 @@ export default function AdminLayout({
         
         {/* Main navigation */}
         <nav className="mt-6 px-3 relative z-10">
-
-
-  {/* User profile card */}
-  <div className="mb-4 p-3 rounded-xl bg-gradient-to-br from-slate-800/50 to-slate-900/50 backdrop-blur-sm border border-white/5 relative overflow-hidden group">
-              {/* Card accents */}
-              <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-blue-500/20 to-transparent"></div>
-              <div className="absolute bottom-0 right-0 w-20 h-20 bg-gradient-to-tl from-blue-500/5 to-transparent rounded-full filter blur-xl"></div>
-              
-              <div className="flex items-center gap-3">
-                {/* User avatar */}
-                <div className="relative">
-                  {user?.profileImage ? (
-                    <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-600/30 to-indigo-600/30 flex items-center justify-center border border-white/10 shadow-md overflow-hidden">
-                      <img 
-                        src={user.profileImage} 
-                        alt={`${user.firstName} ${user.lastName}`}
-                        className="h-full w-full object-cover"
-                        onError={(e) => {
-                          // Fallback if image fails to load
-                          e.currentTarget.style.display = 'none';
-                          e.currentTarget.parentElement!.innerHTML = `<span class="text-white text-sm font-semibold">${userInitials}</span>`;
-                        }} 
-                      />
-                    </div>
-                  ) : (
-                    <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-600/30 to-indigo-600/30 flex items-center justify-center border border-white/10 shadow-md">
-                      <span className="text-white text-sm font-semibold">{userInitials}</span>
-                    </div>
-                  )}
-                  <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-400 border-2 border-slate-800"></div>
-                </div>
-                
-                {/* User info */}
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-white truncate">
-                    {user?.firstName} {user?.lastName}
+          {/* User profile card */}
+          <div className="mb-4 p-3 rounded-xl bg-gradient-to-br from-slate-800/50 to-slate-900/50 backdrop-blur-sm border border-white/5 relative overflow-hidden group">
+            {/* Card accents */}
+            <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-blue-500/20 to-transparent"></div>
+            <div className="absolute bottom-0 right-0 w-20 h-20 bg-gradient-to-tl from-blue-500/5 to-transparent rounded-full filter blur-xl"></div>
+            
+            <div className="flex items-center gap-3">
+              {/* User avatar */}
+              <div className="relative">
+                {user?.profileImage ? (
+                  <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-600/30 to-indigo-600/30 flex items-center justify-center border border-white/10 shadow-md overflow-hidden">
+                    <img 
+                      src={user.profileImage} 
+                      alt={`${user.firstName} ${user.lastName}`}
+                      className="h-full w-full object-cover"
+                      onError={(e) => {
+                        // Fallback if image fails to load
+                        e.currentTarget.style.display = 'none';
+                        e.currentTarget.parentElement!.innerHTML = `<span class="text-white text-sm font-semibold">${userInitials}</span>`;
+                      }} 
+                    />
                   </div>
-                  <div className="text-xs text-slate-400 flex items-center">
-                    <div className="flex-shrink-0 flex items-center">
-                      <Shield className="h-3 w-3 mr-1 text-blue-400" />
-                      <span>Administrator</span>
-                    </div>
+                ) : (
+                  <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-600/30 to-indigo-600/30 flex items-center justify-center border border-white/10 shadow-md">
+                    <span className="text-white text-sm font-semibold">{userInitials}</span>
                   </div>
-                </div>
-                
-                {/* Settings button */}
-                <button className="h-7 w-7 rounded-lg bg-white/5 flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors">
-                  <Settings className="h-4 w-4" />
-                </button>
+                )}
+                <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-400 border-2 border-slate-800"></div>
               </div>
+              
+              {/* User info */}
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-white truncate">
+                  {user?.firstName} {user?.lastName}
+                </div>
+                <div className="text-xs text-slate-400 flex items-center">
+                  <div className="flex-shrink-0 flex items-center">
+                    <Shield className="h-3 w-3 mr-1 text-blue-400" />
+                    <span>Administrator</span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Settings button */}
+              <button className="h-7 w-7 rounded-lg bg-white/5 flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors">
+                <Settings className="h-4 w-4" />
+              </button>
             </div>
+          </div>
 
           <div className="space-y-1">
             {filteredMenuItems.map((item) => (
@@ -329,8 +351,6 @@ export default function AdminLayout({
 
           {/* User profile and logout */}
           <div className="mt-8 pt-6 pb-8">
-          
-          
             {/* Logout button */}
             <Button
               variant="ghost"
@@ -445,6 +465,31 @@ export default function AdminLayout({
             <span className="font-semibold text-slate-800">RoleSphere</span>
           </div>
         </div>
+        
+        {/* Maintenance Mode Alert */}
+        {maintenanceMode && (
+          <div className="px-6 pt-6">
+            <Alert variant="destructive" className="bg-amber-50 border-amber-500 border-2">
+              <AlertTriangle className="h-5 w-5 text-amber-600" />
+              <AlertTitle className="text-amber-800 text-lg font-bold flex items-center">
+                Maintenance Mode Active
+              </AlertTitle>
+              <AlertDescription className="text-amber-700">
+                <p className="mt-1">Only administrators can access the system. Regular users will see a maintenance page.</p>
+                <p className="mt-2 text-sm">
+                  <strong>Note:</strong> You can disable maintenance mode in the Settings page.
+                </p>
+                <div className="mt-3">
+                  <Link to="/admin/settings">
+                    <Button variant="outline" className="border-amber-500 text-amber-700 hover:bg-amber-100">
+                      Go to Settings
+                    </Button>
+                  </Link>
+                </div>
+              </AlertDescription>
+            </Alert>
+          </div>
+        )}
         
         {/* Page header */}
         <header className="pt-6 px-6 lg:px-8 pb-5 sticky top-0 z-10 bg-slate-50/80 backdrop-blur-md shadow-sm border-b lg:border-0 mb-4 mt-14 lg:mt-0">

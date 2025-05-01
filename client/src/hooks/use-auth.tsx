@@ -71,7 +71,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (maintenanceResponse.ok) {
           const maintenanceData = await maintenanceResponse.json();
-          if (maintenanceData?.value === 'true') {
+          // Block non-admin login when maintenance mode is enabled (boolean flag)
+          if (maintenanceData?.value === true) {
             console.log('Maintenance mode is enabled - blocking non-admin login');
             throw new Error('System is in maintenance mode. Only administrators can log in at this time.');
           }

@@ -66,7 +66,26 @@ export default function UserLayout({
   selectedPermission,
 }: UserLayoutProps) {
   const location = useLocation();
-  const { user, userRoles, userPermissions, logoutMutation } = useAuth();
+  const { user, userRoles, userPermissions, logoutMutation, isAdmin } = useAuth();
+  // Map permission names to routes (case-insensitive)
+  const getPermissionLink = (permission: any): string => {
+    const name = permission.name || '';
+    const lower = name.toLowerCase();
+    if (lower.includes('report')) {
+      return isAdmin ? '/admin/reports' : '/user/reports';
+    }
+    if (lower.includes('manage roles')) {
+      return isAdmin ? '/admin/roles' : '/user/roles';
+    }
+    if (lower.includes('manage users')) {
+      return isAdmin ? '/admin/users' : '/user/users';
+    }
+    if (lower.includes('manage permissions')) {
+      return isAdmin ? '/admin/permissions' : '/user/permissions';
+    }
+    // Default: placeholder dashboard
+    return `/user/dashboard?permission=${encodeURIComponent(name)}`;
+  };
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [animateItems, setAnimateItems] = useState(false);
   const [recentPermissions, setRecentPermissions] = useState<any[]>([]);
@@ -208,9 +227,12 @@ export default function UserLayout({
   const navigateToPermission = (permission: any) => {
     if (permission) {
       window.location.href = `/user/dashboard?permission=${encodeURIComponent(permission.name)}`;
+
+
       setMobileMenuOpen(false);
     }
   };
+
 
   // Filter out duplicates from recent permissions that appear in main sections
   const filteredRecentPermissions = recentPermissions.filter(recentPerm => {
@@ -251,13 +273,12 @@ export default function UserLayout({
         <ScrollArea className="flex-grow overflow-auto px-5">
           {/* My Permissions Section */}
           <div className="menu-section pr-3">
-            
             {userPermissions.length === 0 ? (
               <div className="py-4 px-4 bg-indigo-950/50 rounded-xl border border-indigo-900/50 backdrop-blur-sm">
                 <p className="text-sm text-indigo-300 mb-2">No permissions assigned</p>
                 <p className="text-xs text-indigo-400">Contact your administrator to get access to system features.</p>
-                </div>
-              ) : sortedCategories.length > 0 ? (
+              </div>
+            ) : sortedCategories.length > 0 ? (
               <TooltipProvider>
                 {sortedCategories.map((category, categoryIndex) => (
                   <div key={category} className="mb-5">
@@ -266,19 +287,19 @@ export default function UserLayout({
                     </div>
                     {permissionsByCategory[category].map((permission, index) => (
                       <div key={permission.id} className="relative group">
-                        <Link to={`/user/dashboard?permission=${encodeURIComponent(permission.name)}`} className={cn(
+                        <Link to={getPermissionLink(permission)} className={cn(
                           "menu-item flex items-center py-2.5 px-3 rounded-xl mb-1.5 transition-all duration-300 relative",
                           selectedPermission === permission.name
                             ? "bg-gradient-to-r from-indigo-600/90 to-violet-600/90 text-white shadow-md"
                             : "text-indigo-100 hover:bg-white/10 hover:text-white",
-                          animateItems 
+                          animateItems
                             ? "translate-x-0 opacity-100"
                             : "-translate-x-4 opacity-0"
                         )} style={{ transitionDelay: `${(categoryIndex * 100) + (index * 50) + 200}ms` }}>
                           <div className={cn(
                             "bg-white/10 p-2 rounded-lg mr-3 shrink-0",
                             selectedPermission === permission.name
-                              ? "bg-white/20" 
+                              ? "bg-white/20"
                               : "group-hover:bg-white/15"
                           )}>
                             {getPermissionIcon(permission)}
@@ -291,17 +312,17 @@ export default function UserLayout({
                           
                           {/* Active indicator bar */}
                           {selectedPermission === permission.name && (
-                            <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-blue-400 to-violet-400 rounded-r-full" />
+                            <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-1.5 h-8 bg-gradient-to-b from-blue-400 to-violet-400 rounded-r-full shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
                           )}
                         </Link>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <button 
+                            <button
                               onClick={() => toggleFavorite(permission)}
                               className={cn(
                                 "absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 flex items-center justify-center rounded-full",
-                                isPermissionFavorite(permission) 
-                                  ? "text-amber-400 hover:text-amber-300" 
+                                isPermissionFavorite(permission)
+                                  ? "text-amber-400 hover:text-amber-300"
                                   : "opacity-0 group-hover:opacity-100 text-indigo-300 hover:text-indigo-200"
                               )}
                             >
@@ -317,69 +338,20 @@ export default function UserLayout({
                   </div>
                 ))}
               </TooltipProvider>
-              ) : (
+            ) : (
               <p className="text-indigo-300 text-sm">Loading permissions...</p>
             )}
-                </div>
+          </div>
           
           {/* Main Navigation Section */}
           <div className="mt-6 pr-3">
-            <div className="text-xs uppercase text-indigo-300 tracking-wider mb-4 ml-2 font-semibold">
+            {/* <div className="text-xs uppercase text-indigo-300 tracking-wider mb-4 ml-2 font-semibold">
               NAVIGATION
-            </div>
+            </div> */}
 
             {/* Reports Link */}
-            <Link to="/user/reports" className={cn(
-              "menu-item flex items-center py-2.5 px-3 rounded-xl mb-1.5 transition-all duration-300 relative group",
-              isReports
-                ? "bg-gradient-to-r from-indigo-600/90 to-violet-600/90 text-white shadow-md"
-                : "text-indigo-100 hover:bg-white/10 hover:text-white",
-              animateItems ? "translate-x-0 opacity-100" : "-translate-x-4 opacity-0"
-            )} style={{ transitionDelay: "250ms" }}>
-              <div className={cn(
-                "bg-white/10 p-2 rounded-lg mr-3",
-                isReports
-                  ? "bg-white/20" 
-                  : "group-hover:bg-white/15"
-              )}>
-                <FileText className="h-4 w-4" />
-              </div>
-              <span className="font-medium text-sm">Reports</span>
-              
-              {isReports && (
-                <>
-                  <ChevronRight className="h-4 w-4 ml-auto opacity-70" />
-                  <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-blue-400 to-violet-400 rounded-r-full" />
-                </>
-              )}
-            </Link>
-            
-            {/* Users Link */}
-            <Link to="/user/users" className={cn(
-              "menu-item flex items-center py-2.5 px-3 rounded-xl mb-1.5 transition-all duration-300 relative group",
-              isUsers
-                ? "bg-gradient-to-r from-indigo-600/90 to-violet-600/90 text-white shadow-md"
-                : "text-indigo-100 hover:bg-white/10 hover:text-white",
-              animateItems ? "translate-x-0 opacity-100" : "-translate-x-4 opacity-0"
-            )} style={{ transitionDelay: "300ms" }}>
-              <div className={cn(
-                "bg-white/10 p-2 rounded-lg mr-3",
-                isUsers
-                  ? "bg-white/20" 
-                  : "group-hover:bg-white/15"
-              )}>
-                <User className="h-4 w-4" />
-              </div>
-              <span className="font-medium text-sm">User Management</span>
-              
-              {isUsers && (
-                <>
-                  <ChevronRight className="h-4 w-4 ml-auto opacity-70" />
-                  <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-blue-400 to-violet-400 rounded-r-full" />
-                </>
-              )}
-            </Link>
-        </div>
+           
+          </div>
         </ScrollArea>
 
         <div className="pt-4 mt-auto border-t border-indigo-800/50 p-5 shrink-0">
@@ -458,7 +430,7 @@ export default function UserLayout({
                     </div>
                     {permissionsByCategory[category].map((permission, index) => (
                       <div key={permission.id} className="relative group">
-                        <Link to={`/user/dashboard?permission=${encodeURIComponent(permission.name)}`} className={cn(
+                        <Link to={getPermissionLink(permission)} className={cn(
                           "menu-item flex items-center py-2.5 px-3 rounded-xl mb-1.5 transition-all duration-300 relative",
                           selectedPermission === permission.name
                             ? "bg-gradient-to-r from-indigo-600/90 to-violet-600/90 text-white shadow-md"
@@ -478,9 +450,9 @@ export default function UserLayout({
                             <ChevronRight className="h-4 w-4 ml-auto shrink-0 opacity-70" />
                           )}
                           
-                          {/* Active indicator bar */}
+                          {/* Enhanced active indicator bar for mobile view */}
                           {selectedPermission === permission.name && (
-                            <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-blue-400 to-violet-400 rounded-r-full" />
+                            <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-1.5 h-8 bg-gradient-to-b from-blue-400 to-violet-400 rounded-r-full shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
                           )}
                         </Link>
                         <Tooltip>
@@ -535,7 +507,8 @@ export default function UserLayout({
               {isReports && (
                 <>
                   <ChevronRight className="h-4 w-4 ml-auto opacity-70" />
-                  <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-blue-400 to-violet-400 rounded-r-full" />
+                  {/* Enhanced styling for mobile view active indicator */}
+                  <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-1.5 h-8 bg-gradient-to-b from-blue-400 to-violet-400 rounded-r-full shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
                 </>
               )}
             </Link>
@@ -558,7 +531,8 @@ export default function UserLayout({
               {isUsers && (
                 <>
                   <ChevronRight className="h-4 w-4 ml-auto opacity-70" />
-                  <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-blue-400 to-violet-400 rounded-r-full" />
+                  {/* Enhanced styling for mobile view active indicator */}
+                  <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-1.5 h-8 bg-gradient-to-b from-blue-400 to-violet-400 rounded-r-full shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
                 </>
               )}
             </Link>

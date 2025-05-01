@@ -16,6 +16,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { sendWelcomeEmail } from './services/email-service';
 import upload, { uploadToS3 } from "./middleware/file-upload";
 import { maintenanceMode } from "./middleware/maintenance-mode";
+import { setMaintenanceMode, refreshMaintenanceMode, isMaintenanceModeEnabled } from './maintenance-check';
 
 // Add custom interface for multer-s3 file
 declare global {
@@ -2062,6 +2063,110 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('Error resetting settings:', error);
       res.status(500).json({ error: 'Failed to reset settings' });
     }
+  });
+
+  // Add a specific API endpoint for maintenance mode
+  app.post("/api/maintenance/toggle", checkAuth, async (req, res) => {
+    try {
+      // Only allow admin users to toggle maintenance mode
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      // Get user roles to check if they're an admin
+      const userRoles = await storage.getUserRoles(req.user.id);
+      const isAdmin = userRoles.some(role => role.name === 'Administrator') || req.user.username === 'admin';
+      
+      if (!isAdmin) {
+        return res.status(403).json({ error: "Only administrators can toggle maintenance mode" });
+      }
+      
+      const { enabled } = req.body;
+      
+      if (typeof enabled !== 'boolean') {
+        return res.status(400).json({ error: "Enabled parameter must be a boolean value" });
+      }
+      
+      console.log(`Maintenance toggle request: ${enabled ? 'ENABLE' : 'DISABLE'} by user ${req.user.username} (ID: ${req.user.id})`);
+      
+      // Remove the require line - use functions imported at the top of the file
+      // const { setMaintenanceMode, refreshMaintenanceMode } = require('./maintenance-check');
+      
+      try {
+        // Set the maintenance mode
+        await setMaintenanceMode(enabled, req.user.id);
+        
+        // Force refresh the maintenance mode cache
+        await refreshMaintenanceMode();
+        
+        // Log the activity
+        const activity = {
+          id: `maintenance_toggle_${Date.now()}`,
+          type: 'system_maintenance',
+          message: `Maintenance mode ${enabled ? 'enabled' : 'disabled'} by ${req.user.username}`,
+          content: `Maintenance mode ${enabled ? 'enabled' : 'disabled'}`,
+          createdAt: new Date(),
+          userId: String(req.user.id),
+          userName: (req.user.firstName && req.user.lastName) ? `${req.user.firstName} ${req.user.lastName}` : req.user.username,
+          username: req.user.username,
+          details: {
+            userId: req.user.id,
+            username: req.user.username,
+            maintenanceModeEnabled: enabled
+          }
+        };
+        
+        await storage.saveActivity(activity);
+        
+        console.log(`Maintenance mode successfully set to ${enabled ? 'ENABLED' : 'DISABLED'}`);
+        
+        return res.json({ 
+          success: true, 
+          maintenance: enabled,
+          message: `Maintenance mode ${enabled ? 'enabled' : 'disabled'} successfully`
+        });
+      } catch (toggleError: any) {
+        console.error('Error in maintenance mode toggle operation:', toggleError);
+        return res.status(500).json({ 
+          error: `Failed to ${enabled ? 'enable' : 'disable'} maintenance mode`, 
+          message: toggleError.message || `Could not ${enabled ? 'enable' : 'disable'} maintenance mode` 
+        });
+      }
+    } catch (error: any) {
+      console.error('Unexpected error in maintenance toggle endpoint:', error);
+      res.status(500).json({ 
+        error: 'Failed to toggle maintenance mode',
+        message: error.message || 'An unexpected error occurred'
+      });
+    }
+  });
+
+  // Maintenance check endpoint that provides more details
+  app.get("/api/maintenance/status", async (req, res) => {
+    try {
+      // Remove require statement and use imported function
+      // const { isMaintenanceModeEnabled } = require('./maintenance-check');
+      const maintenance = await isMaintenanceModeEnabled();
+      
+      res.json({
+        maintenance,
+        timestamp: new Date().toISOString(),
+        message: maintenance 
+          ? "System is in maintenance mode. Only administrators can access." 
+          : "System is operating normally."
+      });
+    } catch (error: any) {
+      console.error('Error checking maintenance status:', error);
+      res.status(500).json({ 
+        error: 'Failed to check maintenance status',
+        message: error.message || 'An unexpected error occurred'
+      });
+    }
+  });
+
+  // Add a specific health check endpoint
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "up", timestamp: new Date().toISOString() });
   });
 
   return httpServer;

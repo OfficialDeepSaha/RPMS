@@ -562,19 +562,97 @@ export default function AdminSettings() {
                       control={generalForm.control}
                       name="maintenanceMode"
                       render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                          <div className="space-y-0.5">
-                            <FormLabel className="text-base">Maintenance Mode</FormLabel>
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 space-y-0">
+                          <div className="space-y-1">
+                            <FormLabel className="text-base font-semibold">Maintenance Mode</FormLabel>
                             <FormDescription>
-                              When enabled, only administrators can access the system
+                              {field.value ? (
+                                <span className="text-amber-500 font-medium flex items-center">
+                                  <AlertCircle className="h-4 w-4 mr-1" />
+                                  ACTIVE: Only administrators can access the system
+                                </span>
+                              ) : (
+                                <span className="text-green-500 flex items-center">
+                                  <CheckCircle2 className="h-4 w-4 mr-1" />
+                                  INACTIVE: All users can access the system
+                                </span>
+                              )}
                             </FormDescription>
                           </div>
-                          <FormControl>
-                            <Switch
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
+                          <div className="flex items-center space-x-2">
+                            <FormControl>
+                              <Switch
+                                checked={field.value}
+                                onCheckedChange={async (checked) => {
+                                  // Ask for confirmation when enabling maintenance mode
+                                  if (checked) {
+                                    if (window.confirm("Enable maintenance mode? This will prevent all non-administrator users from accessing the system until disabled.")) {
+                                      try {
+                                        // Use the dedicated maintenance mode endpoint
+                                        const response = await fetch('/api/maintenance/toggle', {
+                                          method: 'POST',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          credentials: 'include',
+                                          body: JSON.stringify({ enabled: true })
+                                        });
+                                        
+                                        if (response.ok) {
+                                          const data = await response.json();
+                                          field.onChange(checked);
+                                          toast({
+                                            title: "Maintenance Mode Enabled",
+                                            description: data.message || "Only administrators can access the system now.",
+                                            variant: "default",
+                                          });
+                                        } else {
+                                          const errorData = await response.json().catch(() => ({ error: "Failed to enable maintenance mode" }));
+                                          throw new Error(errorData.message || errorData.error || "Failed to enable maintenance mode");
+                                        }
+                                      } catch (error: any) {
+                                        console.error("Error toggling maintenance mode:", error);
+                                        toast({
+                                          title: "Error",
+                                          description: error.message || "Failed to enable maintenance mode. Please try again.",
+                                          variant: "destructive",
+                                        });
+                                      }
+                                    }
+                                  } else {
+                                    try {
+                                      // Use the dedicated maintenance mode endpoint to disable
+                                      const response = await fetch('/api/maintenance/toggle', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        credentials: 'include',
+                                        body: JSON.stringify({ enabled: false })
+                                      });
+                                      
+                                      if (response.ok) {
+                                        const data = await response.json();
+                                        field.onChange(checked);
+                                        toast({
+                                          title: "Maintenance Mode Disabled",
+                                          description: data.message || "All users can access the system now.",
+                                          variant: "default",
+                                        });
+                                      } else {
+                                        const errorData = await response.json().catch(() => ({ error: "Failed to disable maintenance mode" }));
+                                        throw new Error(errorData.message || errorData.error || "Failed to disable maintenance mode");
+                                      }
+                                    } catch (error: any) {
+                                      console.error("Error toggling maintenance mode:", error);
+                                      toast({
+                                        title: "Error",
+                                        description: error.message || "Failed to disable maintenance mode. Please try again.",
+                                        variant: "destructive",
+                                      });
+                                    }
+                                  }
+                                }}
+                              />
+                            </FormControl>
+                            <span>{field.value ? "Enabled" : "Disabled"}</span>
+                          </div>
                         </FormItem>
                       )}
                     />

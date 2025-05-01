@@ -858,29 +858,39 @@ export class MongoStorage implements IStorage {
   }
   
   async updateSetting(key: string, value: any, userId: number = 1): Promise<SystemSettingsType | null> {
-    const updated = await SystemSettings.findOneAndUpdate(
-      { key },
-      { 
-        $set: { 
-          value,
-          lastUpdated: new Date(),
-          updatedBy: userId
-        } 
-      },
-      { new: true }
-    ).lean();
-    
-    // Log the setting update
-    if (updated) {
-      await this.logActivity(
-        'setting_updated',
-        `System setting "${key}" was updated`,
-        userId,
-        { key, newValue: value, previousValue: updated.value }
-      );
+    try {
+      // First, get the current setting to capture previous value
+      const currentSetting = await SystemSettings.findOne({ key }).lean();
+      const previousValue = currentSetting?.value;
+      
+      // Then update the setting
+      const updated = await SystemSettings.findOneAndUpdate(
+        { key },
+        { 
+          $set: { 
+            value,
+            lastUpdated: new Date(),
+            updatedBy: userId
+          } 
+        },
+        { new: true }
+      ).lean();
+      
+      // Log the setting update
+      if (updated) {
+        await this.logActivity(
+          'setting_updated',
+          `System setting "${key}" was updated`,
+          userId,
+          { key, newValue: value, previousValue }
+        );
+      }
+      
+      return updated;
+    } catch (error) {
+      console.error(`Error updating setting ${key}:`, error);
+      return null;
     }
-    
-    return updated;
   }
   
   async updateSettings(settings: { key: string, value: any }[], userId: number = 1): Promise<boolean> {
