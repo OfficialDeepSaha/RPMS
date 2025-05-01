@@ -86,7 +86,15 @@ export default function CreateRoleForm({
 
   const updateRoleMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number, data: RoleFormValues }) => {
-      const res = await apiRequest("PUT", `/api/roles/${id}`, data);
+      // Ensure permissions are properly formatted as an array of IDs
+      const formattedData = {
+        ...data,
+        permissions: data.permissions.map(p => 
+          typeof p === 'object' && p !== null ? (p as any).id : p
+        )
+      };
+      
+      const res = await apiRequest("PUT", `/api/roles/${id}`, formattedData);
       return await res.json();
     },
     onSuccess: () => {

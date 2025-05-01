@@ -141,13 +141,15 @@ const AdminRoles = () => {
   const updateRoleMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: Partial<Role> }) => {
       // Ensure permissions is an array of IDs
-      if (data.permissions && Array.isArray(data.permissions)) {
-        data.permissions = data.permissions.map(p => 
+      const formattedData = { ...data };
+      
+      if (formattedData.permissions && Array.isArray(formattedData.permissions)) {
+        formattedData.permissions = formattedData.permissions.map(p => 
           typeof p === 'object' && p !== null ? (p as any).id : p
         );
       }
       
-      const response = await apiRequest("PUT", `/api/roles/${id}`, data);
+      const response = await apiRequest("PUT", `/api/roles/${id}`, formattedData);
       return response.json() as Promise<Role>;
     },
     onSuccess: () => {

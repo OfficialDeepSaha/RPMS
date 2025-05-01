@@ -7,7 +7,7 @@ import { storage } from './storage';
 
 // Constants
 const ADMIN_USERNAME = 'admin'; // Username of the admin that should have access
-const FORCE_MAINTENANCE_MODE = true; // Always enable the maintenance check (will still check DB setting)
+const FORCE_MAINTENANCE_MODE = false; // Changed from true to false to disable forced maintenance mode
 
 // Initialize Express middleware
 export default async function maintenanceBlocker(req: Request, res: Response, next: NextFunction) {
