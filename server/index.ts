@@ -9,6 +9,7 @@ import { maintenanceMode } from "./middleware/maintenance-mode";
 import maintenanceBlocker from "./maintenance-blocker";
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import fs from 'fs';
 
 const app = express();
 // First, parse request body so we can check maintenance mode status
@@ -133,15 +134,59 @@ app.use((req, res, next) => {
 
   // Serve static assets in production
   if (NODE_ENV === 'production') {
-    // Calculate path correctly for ES modules
-    const clientDistPath = path.resolve(__dirname, '../../client/dist');
-    console.log(`Serving static files from: ${clientDistPath}`);
+    // Try multiple possible paths for the client dist directory
+    let clientDistPath;
     
-    app.use(express.static(clientDistPath));
+    // Possible paths for client/dist (Render structure is different)
+    const possiblePaths = [
+      path.resolve(__dirname, '../../client/dist'),        // Local/normal structure
+      path.resolve(process.cwd(), 'client/dist'),          // From current working directory
+      path.resolve(process.cwd(), '../client/dist'),       // One level up
+      path.resolve(process.cwd(), 'dist'),                 // Just /dist folder
+      path.resolve(process.cwd(), 'dist/client'),          // dist/client structure
+      path.resolve(process.cwd(), 'dist/public'),          // Original vite output path
+      '/opt/render/project/src/client/dist',              // Render specific
+      '/opt/render/project/dist',                         // Render specific alt
+      '/opt/render/project/dist/client',                  // Another Render possibility
+      '/opt/render/project/dist/public'                   // Original vite output on Render
+    ];
     
-    app.get('*', (req, res) => {
-      res.sendFile(path.resolve(clientDistPath, 'index.html'));
-    });
+    // Find the first valid path
+    for (const testPath of possiblePaths) {
+      try {
+        // Use fs to check if directory exists
+        if (fs.existsSync(testPath) && 
+            fs.existsSync(path.join(testPath, 'index.html'))) {
+          clientDistPath = testPath;
+          console.log(`✅ Found client files at: ${clientDistPath}`);
+          break;
+        }
+      } catch (err) {
+        // Just skip to next path
+        console.log(`❌ Path doesn't exist: ${testPath}`);
+      }
+    }
+    
+    if (clientDistPath) {
+      // Serve static files from the client/dist directory
+      console.log(`Serving static files from: ${clientDistPath}`);
+      app.use(express.static(clientDistPath));
+      
+      app.get('*', (req, res) => {
+        res.sendFile(path.join(clientDistPath, 'index.html'));
+      });
+    } else {
+      console.error('ERROR: Could not find client/dist directory!');
+      console.error('Current directory structure:');
+      try {
+        // Try to list files in current directory to help debug
+        const currentDir = process.cwd();
+        console.error(`Contents of ${currentDir}:`);
+        console.error(fs.readdirSync(currentDir).join(', '));
+      } catch (e) {
+        console.error('Failed to list directory:', e);
+      }
+    }
   }
 
   const port = PORT;
