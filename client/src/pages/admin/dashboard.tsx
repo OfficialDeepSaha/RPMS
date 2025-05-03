@@ -298,90 +298,37 @@ export default function AdminDashboard() {
   
   // Activity Item component
   const ActivityItem = ({ activity }: { activity: ActivityItemType }) => {
-    // Format the activity message with highlighted entities
     const formatMessage = (message: string) => {
-      const entities = [
-        { regex: /"([^"]+)"/g, className: 'text-sky-400 font-medium' },           // Quoted text
-        { regex: /@([a-zA-Z0-9_-]+)/g, className: 'text-indigo-400 font-medium' }, // @mentions
-        { regex: /#([a-zA-Z0-9_-]+)/g, className: 'text-purple-400 font-medium' }  // #tags
-      ];
-      
-      let parts = [{ text: message, isMatch: false }];
-      
-      entities.forEach(entity => {
-        let newParts: { text: string; isMatch: boolean; className?: string }[] = [];
-        
-        parts.forEach(part => {
-          if (part.isMatch) {
-            newParts.push(part);
-            return;
-          }
-          
-          const splits = part.text.split(entity.regex);
-          if (splits.length === 1) {
-            newParts.push(part);
-            return;
-          }
-          
-          let lastIndex = 0;
-          part.text.replace(entity.regex, (match, p1, offset) => {
-            newParts.push({ 
-              text: part.text.substring(lastIndex, offset), 
-              isMatch: false 
-            });
-            newParts.push({ 
-              text: match, 
-              isMatch: true, 
-              className: entity.className 
-            });
-            lastIndex = offset + match.length;
-            return match;
-          });
-          
-          if (lastIndex < part.text.length) {
-            newParts.push({ 
-              text: part.text.substring(lastIndex), 
-              isMatch: false 
-            });
-          }
-        });
-        
-        parts = newParts;
-      });
-      
-      return parts.map((part, index) => 
-        part.isMatch ? 
-          <span key={index} className="font-medium text-blue-400">{part.text}</span> : 
-          <span key={index}>{part.text}</span>
+      // Enhanced message formatting with better highlighting
+      return message.replace(
+        /(created|updated|deleted|added|removed|assigned|logged in|logged out)/gi,
+        '<span class="font-medium text-indigo-400">$1</span>'
       );
     };
     
     const meta = getActivityMeta(activity.type);
+    const timeAgo = getTimeAgo(activity.timestamp);
     
     return (
-      <div className="relative flex gap-4 pb-8 last:pb-0 group">
-        {/* Connector line */}
-        <div className="absolute left-[1.1rem] top-[2.3rem] bottom-0 w-px bg-slate-800 group-last:hidden"></div>
-        
-        {/* Icon */}
-        <div className={cn(
-          "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-sm mt-1",
-          meta.color
-        )}>
-          <span className={meta.textColor}>{meta.icon}</span>
+      <div className="flex items-start gap-3 p-4 group-hover/item:bg-slate-800/20 transition-colors duration-300">
+        <div className={`${meta.color} rounded-full p-2 flex-shrink-0 transition-transform duration-300 group-hover/item:scale-110 group-hover/item:rotate-3`}>
+          <div className={meta.textColor}>{meta.icon}</div>
         </div>
         
-        {/* Content */}
-        <div className="flex min-w-0 flex-1 flex-col">
-          <div className="flex flex-wrap items-center gap-x-2 text-sm">
-            <span className="font-medium text-white">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-x-2">
+            <div className="font-medium text-slate-200 truncate transition-colors duration-300 group-hover/item:text-white">
               {activity.user?.name || 'System'}
-            </span>
-            <span className="text-slate-400 line-clamp-2">
-              {formatMessage(activity.message)}
-            </span>
+            </div>
+            <div className="text-xs text-slate-500 flex-shrink-0 whitespace-nowrap transition-colors duration-300 group-hover/item:text-slate-400">
+              {timeAgo}
+            </div>
           </div>
-          <time className="mt-1 text-xs text-slate-500">{getTimeAgo(activity.timestamp)}</time>
+          
+          <div 
+            className="text-sm text-slate-400 mt-1 transition-colors duration-300 group-hover/item:text-slate-300"
+            dangerouslySetInnerHTML={{ __html: formatMessage(activity.message) }}
+          />
         </div>
       </div>
     );
@@ -440,63 +387,70 @@ export default function AdminDashboard() {
     };
     
     return (
-      <Card className="border-[1.5px] rounded-xl border-slate-800/60 bg-slate-900/90 backdrop-blur-sm">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold text-white">Recent Activities</h3>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-8 text-slate-400 hover:text-white"
-              onClick={fetchActivities}
-              disabled={activitiesLoading}
+      <Card className="bg-gradient-to-br from-slate-950/90 to-slate-900/80 backdrop-blur-lg border-0 shadow-lg rounded-xl overflow-hidden group">
+        {/* Glass border effect */}
+        <div className="absolute inset-0 rounded-xl border border-slate-700/30 bg-gradient-to-br from-slate-700/10 to-slate-700/5 pointer-events-none"></div>
+        
+        {/* Animated gradient background */}
+        <div className="absolute inset-0 opacity-10 bg-gradient-to-br from-indigo-900 via-slate-900 to-blue-900 group-hover:opacity-20 transition-opacity duration-700"></div>
+        
+        <CardContent className="p-0 relative z-10">
+          <div className="flex items-center justify-between p-5 border-b border-slate-800/50">
+            <h3 className="text-base font-medium text-slate-200 group-hover:text-white transition-colors duration-300 flex items-center gap-2">
+              <Activity className="h-4 w-4 text-indigo-400" />
+              Recent Activities
+            </h3>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={fetchActivities} 
+              className="h-8 w-8 rounded-full bg-slate-800/50 hover:bg-indigo-900/50 text-slate-400 hover:text-indigo-300 transition-all duration-300"
             >
-              {activitiesLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-              <span className="ml-2">Refresh</span>
+              <RefreshCw className="h-4 w-4" />
             </Button>
           </div>
           
-          {activitiesError ? (
-            <Alert variant="destructive" className="mb-4">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Error</AlertTitle>
-              <AlertDescription>
-                Failed to load activities. Please try again.
-              </AlertDescription>
-            </Alert>
-          ) : activitiesLoading ? (
-            <div className="space-y-4">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="flex gap-4">
-                  <Skeleton className="h-10 w-10 rounded-xl" />
-                  <div className="space-y-2 flex-1">
-                    <Skeleton className="h-4 w-full" />
-                    <Skeleton className="h-3 w-20" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : activities && activities.length > 0 ? (
-            <div className="space-y-6">
-              {activities.map((activity) => (
-                <ActivityItem key={activity.id} activity={activity} />
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-10 text-center">
-              <div className="mb-3 rounded-xl bg-slate-800/70 p-3">
-                <ClipboardList className="h-6 w-6 text-slate-400" />
+          <div className="max-h-[400px] overflow-y-auto scrollbar-thin">
+            {activitiesLoading ? (
+              <div className="flex flex-col items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 text-indigo-500 animate-spin mb-2" />
+                <p className="text-sm text-slate-400">Loading activities...</p>
               </div>
-              <h3 className="text-sm font-medium text-white">No activities yet</h3>
-              <p className="mt-1 text-xs text-slate-400">
-                Activities will appear here as users interact with the system.
-              </p>
-            </div>
-          )}
+            ) : activitiesError ? (
+              <div className="p-5">
+                <Alert variant="destructive" className="bg-red-950/30 border-red-900/50 text-red-400">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Error</AlertTitle>
+                  <AlertDescription>
+                    Failed to load activities. Please try again.
+                  </AlertDescription>
+                </Alert>
+              </div>
+            ) : !activities || activities.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 px-5">
+                <FileQuestion className="h-16 w-16 text-slate-600 mb-3" />
+                <p className="text-center text-slate-400 mb-1">No recent activities found</p>
+                <p className="text-center text-sm text-slate-500">Activities will appear here as users interact with the system</p>
+              </div>
+            ) : (
+              <ul className="divide-y divide-slate-800/50">
+                {activities.map((activity, index) => (
+                  <li 
+                    key={activity.id} 
+                    className="relative group/item"
+                    style={{
+                      animationDelay: `${index * 50}ms`,
+                    }}
+                  >
+                    {/* Hover effect */}
+                    <div className="absolute inset-0 bg-indigo-900/10 opacity-0 group-hover/item:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+                    
+                    <ActivityItem activity={activity} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </CardContent>
       </Card>
     );
@@ -504,121 +458,154 @@ export default function AdminDashboard() {
 
   return (
     <AdminLayout 
-      title="Admin Dashboard" 
+      title="Admin Dashboard"
       description="Monitor system activity and manage users, roles, and permissions."
     >
-      <div className="space-y-8">
-        {/* Welcome section with time-based greeting */}
-        <div className="bg-gradient-to-r from-slate-900 to-slate-800 rounded-xl border border-slate-700/50 shadow-lg p-6">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div>
-              <div className="flex items-center space-x-3">
-                <div className="h-12 w-12 rounded-full bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center shadow-md">
-                  {user?.firstName && user?.lastName ? (
-                    <span className="text-white font-semibold text-lg">
-                      {user.firstName[0]}{user.lastName[0]}
-                    </span>
-                  ) : (
-                    <User className="h-6 w-6 text-white" />
-                  )}
-                </div>
-                <div>
-                  <h1 className="text-xl font-bold text-white">
-                    {greeting},&nbsp;
-                    <span className="bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
-                      {user?.firstName || 'Administrator'}!
-                    </span>
-                  </h1>
-                  <p className="text-slate-400 text-sm">{currentTime}</p>
+      {/* Futuristic animated greeting card */}
+      <div className="mb-6">
+        <Card className="border-0 shadow-2xl rounded-xl overflow-hidden bg-gradient-to-br from-slate-950/90 to-slate-900/80 backdrop-blur-lg relative">
+          {/* Glass border effect */}
+          <div className="absolute inset-0 rounded-xl border border-slate-700/30 pointer-events-none"></div>
+          
+          {/* Animated background patterns */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500/30 to-transparent"></div>
+            <div className="absolute inset-0 opacity-5 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBzdHJva2U9InJnYmEoMjU1LDI1NSwyNTUsMC41KSIgc3Ryb2tlLXdpZHRoPSIwLjUiIGZpbGw9Im5vbmUiIGZpbGwtcnVsZT0iZXZlbm9kZCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMzAgNUwzMCAzMCAzMCA1NSI+PC9wYXRoPjxwYXRoIGQ9Ik01IDMwTDMwIDMwIDU1IDMwIj48L3BhdGg+PC9nPjwvc3ZnPg==')]"></div>
+            
+            {/* Animated glowing orbs */}
+            <div className="absolute -top-20 -left-20 w-40 h-40 rounded-full bg-blue-500/10 filter blur-xl animate-pulse-slow"></div>
+            <div className="absolute -bottom-20 -right-20 w-40 h-40 rounded-full bg-indigo-500/10 filter blur-xl animate-pulse-slow animation-delay-2000"></div>
+          </div>
+          
+          <CardContent className="p-0">
+            <div className="flex flex-col md:flex-row items-start md:items-center p-6 relative z-10">
+              {/* User avatar with animated border */}
+              <div className="mr-4 mb-4 md:mb-0 relative group">
+                <div className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 animate-spin-slow opacity-70 blur-sm group-hover:opacity-100 transition-opacity duration-300"></div>
+                <div className="h-14 w-14 rounded-full bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center relative border border-slate-700/50 shadow-inner overflow-hidden">
+                  <span className="text-xl font-bold text-blue-200">
+                    {user?.firstName?.charAt(0) || "A"}
+                    {user?.lastName?.charAt(0) || "U"}
+                  </span>
+                  <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 to-indigo-600/10"></div>
                 </div>
               </div>
-            </div>
-            
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-              <Select
-                value={timePeriod}
-                onValueChange={(value: any) => setTimePeriod(value)}
-              >
-                <SelectTrigger className="w-[180px] bg-slate-800 text-white border-slate-700 focus:ring-indigo-500">
-                  <SelectValue placeholder="Select period" />
-                </SelectTrigger>
-                <SelectContent className="bg-slate-800 border-slate-700 text-white">
-                  <SelectItem value="today" className="focus:bg-slate-700">Today</SelectItem>
-                  <SelectItem value="week" className="focus:bg-slate-700">This Week</SelectItem>
-                  <SelectItem value="month" className="focus:bg-slate-700">This Month</SelectItem>
-                </SelectContent>
-              </Select>
               
-              <Button
-                className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-md hover:shadow-lg transition-all duration-200"
-              >
-                <FileSearch className="mr-2 h-4 w-4" />
-                View Reports
-              </Button>
+              {/* Greeting text with animations */}
+              <div className="flex-1">
+                <h2 className="text-xl md:text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-200 via-indigo-100 to-blue-100 animate-fadeIn">
+                  {greeting}, {user?.firstName || "Admin"}!
+                </h2>
+                <p className="text-slate-400 mt-1 animate-fadeIn" style={{ animationDelay: '100ms' }}>
+                  {currentTime}
+                </p>
+              </div>
+              
+              {/* Date filter */}
+              <div className="mt-4 md:mt-0 self-stretch flex items-center animate-fadeIn" style={{ animationDelay: '200ms' }}>
+                <Select
+                  value={timePeriod}
+                  onValueChange={(value: any) => setTimePeriod(value)}
+                >
+                  <SelectTrigger className="w-36 bg-slate-900/50 border-slate-700/50 text-slate-300 rounded-lg">
+                    <SelectValue placeholder="Select period" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-900 border-slate-700 text-slate-300">
+                    <SelectItem value="today">Today</SelectItem>
+                    <SelectItem value="week">This Week</SelectItem>
+                    <SelectItem value="month">This Month</SelectItem>
+                    <SelectItem value="thisYear">This Year</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-          </div>
-        </div>
-        
-        {/* Main stats row */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          </CardContent>
+        </Card>
+      </div>
+      
+      {/* Stats grid with staggered animation */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+        {/* Apply staggered animation delay to each card */}
+        <div className="animate-fadeIn" style={{ animationDelay: '100ms' }}>
           <StatCard
             title="Total Roles"
-            value={stats ? stats.roles : "-"}
-            type="number"
-            icon={<Shield className="h-5 w-5 text-white" />}
-            iconBg="bg-purple-900"
-            trend={stats ? stats.rolesTrend : 0}
-            trendText={`from previous ${timePeriod}`}
-            chartData={roleChartData}
+            value={stats?.roles || 0}
+            icon={<Shield className="h-4 w-4 text-purple-200" />}
+            iconBg="bg-purple-900/50"
+            trend={stats?.rolesTrend || 0}
+            chartData={generateSingleChartData(stats?.roles || 4)}
             chartColor="#a855f7"
-          />
-          
-          <StatCard
-            title="Total Permissions"
-            value={stats ? stats.permissions : "-"}
-            type="number"
-            icon={<Key className="h-5 w-5 text-white" />}
-            iconBg="bg-amber-900"
-            trend={stats ? stats.permissionsTrend : 0}
-            trendText={`from previous ${timePeriod}`}
-            chartData={permissionChartData}
-            chartColor="#f59e0b"
-          />
-          
-          <StatCard
-            title="Active Users"
-            value={stats ? stats.activeUsers : "-"}
-            type="number"
-            icon={<Users className="h-5 w-5 text-white" />}
-            iconBg="bg-blue-900"
-            trend={stats ? stats.activeUsersTrend : 0}
-            trendText={`from previous ${timePeriod}`}
-            chartData={activeUsersChartData}
-            chartColor="#3b82f6"
-          />
-          
-          <StatCard
-            title="Total Users"
-            value={stats ? stats.users : "-"}
-            type="number"
-            icon={<UserCheck className="h-5 w-5 text-white" />}
-            iconBg="bg-indigo-900"
-            trend={stats ? stats.usersTrend : 0}
-            trendText={`from previous ${timePeriod}`}
-            chartData={userChartData}
-            chartColor="#8b5cf6"
           />
         </div>
         
-        {/* Bottom row with activities and dashboard chart */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <RecentActivities />
-          
-          <DashboardChart 
-            title="System Analytics" 
-            data={dashboardChartData}
-            stats={dashboardStats}
+        <div className="animate-fadeIn" style={{ animationDelay: '200ms' }}>
+          <StatCard
+            title="Total Permissions"
+            value={stats?.permissions || 0}
+            icon={<Key className="h-4 w-4 text-amber-200" />}
+            iconBg="bg-amber-900/50"
+            trend={stats?.permissionsTrend || 0}
+            chartData={generateSingleChartData(stats?.permissions || 5)}
+            chartColor="#f59e0b"
           />
+        </div>
+        
+        <div className="animate-fadeIn" style={{ animationDelay: '300ms' }}>
+          <StatCard
+            title="Active Users"
+            value={stats?.activeUsers || 0}
+            icon={<UserCheck className="h-4 w-4 text-blue-200" />}
+            iconBg="bg-blue-900/50"
+            trend={stats?.activeUsersTrend || 0}
+            chartData={generateSingleChartData(stats?.activeUsers || 2)}
+            chartColor="#3b82f6"
+          />
+        </div>
+        
+        <div className="animate-fadeIn" style={{ animationDelay: '400ms' }}>
+          <StatCard
+            title="Total Users"
+            value={stats?.users || 0}
+            icon={<Users className="h-4 w-4 text-emerald-200" />}
+            iconBg="bg-emerald-900/50"
+            trend={stats?.usersTrend || 0}
+            chartData={generateSingleChartData(stats?.users || 2)}
+            chartColor="#10b981"
+          />
+        </div>
+      </div>
+      
+      {/* Dashboard charts and activities with staggered animation */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 animate-fadeIn" style={{ animationDelay: '500ms' }}>
+          {statsLoading ? (
+            <Card className="border-0 bg-slate-900/80 backdrop-blur-lg rounded-xl shadow-lg h-[500px] flex items-center justify-center">
+              <Loader2 className="h-10 w-10 text-blue-500 animate-spin" />
+            </Card>
+          ) : statsError ? (
+            <Alert variant="destructive" className="mb-4 bg-red-950/30 border-red-900/50 text-red-400">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>Failed to load statistics. Please try again.</AlertDescription>
+            </Alert>
+          ) : (
+            <DashboardChart 
+              data={generateChartData(
+                stats?.roles || 4, 
+                stats?.permissions || 5, 
+                stats?.activeUsers || 2
+              )}
+              stats={{
+                roles: stats?.roles || 4,
+                permissions: stats?.permissions || 5,
+                activeUsers: stats?.activeUsers || 2
+              }}
+            />
+          )}
+        </div>
+        
+        <div className="animate-fadeIn" style={{ animationDelay: '600ms' }}>
+          <RecentActivities />
         </div>
       </div>
     </AdminLayout>

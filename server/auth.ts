@@ -8,10 +8,11 @@ import { storage } from "./storage";
 import { User as SelectUser, Role } from "@shared/schema";
 import jwt from "jsonwebtoken";
 import type { Request, Response, NextFunction } from "express";
-import { isMaintenanceModeEnabled, refreshMaintenanceMode } from "./maintenance-check";
+import { isMaintenanceModeEnabled, isAdministratorUser, isAdministratorByRole, ADMIN_USERNAME, ADMIN_ROLE_NAME } from "./maintenance-check";
 
 // Constants
-const ADMIN_USERNAME = 'admin';
+const JWT_SECRET = process.env.JWT_SECRET || "dev_secret_key_change_in_prod";
+const JWT_EXPIRES_IN = "7d";
 
 declare global {
   namespace Express {
@@ -20,9 +21,6 @@ declare global {
 }
 
 const scryptAsync = promisify(scrypt);
-
-const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret_key_change_this";
-const JWT_EXPIRES_IN = "7d";
 
 async function hashPassword(password: string) {
   const salt = randomBytes(16).toString("hex");
@@ -107,10 +105,18 @@ export function setupAuth(app: Express) {
           const maintenanceModeEnabled = await isMaintenanceModeEnabled();
           
           if (maintenanceModeEnabled) {
-            console.log(`MAINTENANCE MODE: Blocked login at secondary check for user '${username}'`);
-            return done(null, false, { 
-              message: "System is in maintenance mode. Only administrators can log in at this time." 
-            });
+            // Perform additional role check for administrators
+            const isAdminRole = await isAdministratorByRole(user.id);
+            
+            // Only block if the user doesn't have the admin role
+            if (!isAdminRole) {
+              console.log(`MAINTENANCE MODE: Blocked login for user '${username}' (not admin role)`);
+              return done(null, false, { 
+                message: "System is in maintenance mode. Only administrators can log in at this time." 
+              });
+            }
+            
+            console.log(`MAINTENANCE MODE: Allowed login for administrator '${username}' (has admin role)`);
           }
         }
         
@@ -173,9 +179,15 @@ export function setupAuth(app: Express) {
       // Check if we're in maintenance mode
       const maintenanceModeEnabled = await isMaintenanceModeEnabled();
       const isAdminUser = req.body.username === ADMIN_USERNAME;
+      const isFlaggedMaintenance = req.body.maintenanceMode === true;
       
-      // In maintenance mode, only allow admin login attempts
-      if (maintenanceModeEnabled && !isAdminUser) {
+      // If client included the maintenanceMode flag, this is an attempt to login during maintenance
+      // Allow this to proceed for potential admin login, the passport strategy will verify admin status
+      if (isFlaggedMaintenance) {
+        console.log(`Maintenance mode login attempt flagged for user: ${req.body.username}`);
+      }
+      // In maintenance mode without flag, only allow admin login attempts
+      else if (maintenanceModeEnabled && !isAdminUser) {
         console.log(`MAINTENANCE MODE: Login attempt for non-admin user '${req.body.username}' was blocked`);
         return res.status(503).json({
           error: true,
@@ -189,19 +201,25 @@ export function setupAuth(app: Express) {
         if (err) return next(err);
         if (!user) return res.status(401).json({ message: info?.message || "Invalid credentials" });
 
-        // If in maintenance mode, double-check this is an admin account
-        if (maintenanceModeEnabled && user.username !== ADMIN_USERNAME) {
-          const userRoles = await storage.getUserRoles(user.id);
-          const isAdmin = userRoles.some(role => role.name === 'Administrator');
+        // If in maintenance mode, perform thorough checks for administrator status
+        if (maintenanceModeEnabled) {
+          // First check username
+          const isAdminUsername = user.username === ADMIN_USERNAME;
           
-          if (!isAdmin) {
-            console.log(`MAINTENANCE MODE: Blocked login for non-admin ${user.username} (secondary check)`);
+          // Then check role
+          const isAdminRole = await isAdministratorByRole(user.id);
+          
+          // Only allow if either username is admin OR user has Administrator role
+          if (!isAdminUsername && !isAdminRole) {
+            console.log(`MAINTENANCE MODE: Blocked login for non-admin ${user.username} (failed both admin checks)`);
             return res.status(503).json({
               error: true,
               maintenance: true,
               message: "System is in maintenance mode. Only administrators can log in at this time."
             });
           }
+          
+          console.log(`MAINTENANCE MODE: Allowed admin login for ${user.username} (Admin username: ${isAdminUsername}, Admin role: ${isAdminRole})`);
         }
 
         req.login(user, async (err: any) => {

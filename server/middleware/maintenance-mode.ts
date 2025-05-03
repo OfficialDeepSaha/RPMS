@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import { storage } from "../storage";
-import { isMaintenanceModeEnabled, isAdministratorUser, ADMIN_USERNAME } from "../maintenance-check";
+import { isMaintenanceModeEnabled, isAdministratorUser, isAdministratorByRole, ADMIN_USERNAME, ADMIN_ROLE_NAME } from "../maintenance-check";
 
 /**
  * Debugging function to log detailed information about requests
@@ -75,22 +75,19 @@ export const maintenanceMode = async (req: Request, res: Response, next: NextFun
       const user = req.user;
       
       // Check by username first (fastest check)
-      if (isAdministratorUser(user.username)) {
-        logRequestInfo(req, `Admin access granted to: ${user.username}`);
-        return next();
-      }
+      const isAdminUsername = isAdministratorUser(user.username);
       
       // Then check by role (more thorough)
-      const userRoles = await storage.getUserRoles(user.id);
-      const isAdmin = userRoles.some(role => role.name === 'Administrator');
+      const isAdminRole = await isAdministratorByRole(user.id);
       
-      if (isAdmin) {
-        logRequestInfo(req, `Admin role access granted to: ${user.username}`);
+      // Grant access if EITHER check passes
+      if (isAdminUsername || isAdminRole) {
+        logRequestInfo(req, `Admin access granted to: ${user.username} (Username: ${isAdminUsername}, Role: ${isAdminRole})`);
         return next();
       }
       
       // Non-admin user trying to access during maintenance
-      logRequestInfo(req, `Access DENIED: Non-admin user ${user.username} during maintenance`);
+      logRequestInfo(req, `Access DENIED: Non-admin user ${user.username} during maintenance (Username: ${isAdminUsername}, Role: ${isAdminRole})`);
       
       // For API routes, return 503
       if (req.path.startsWith('/api/')) {

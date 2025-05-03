@@ -29,6 +29,7 @@ type AuthContextType = {
 type LoginData = {
   username: string;
   password: string;
+  maintenanceMode?: boolean;
 };
 
 export const AuthContext = createContext<AuthContextType | null>(null);
@@ -64,8 +65,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginData) => {
-      // First check maintenance mode status if not admin
-      if (credentials.username !== 'admin') {
+      // For maintenance mode login, skip the maintenance check if the flag is set
+      if (credentials.maintenanceMode) {
+        console.log('Maintenance mode login attempt for:', credentials.username);
+        // Continue with login without checking maintenance status - admin check will happen server-side
+      }
+      // Normal login flow for non-maintenance mode or non-flagged requests
+      else if (credentials.username !== 'admin') {
         console.log('Checking maintenance mode status before login attempt');
         const maintenanceResponse = await fetch('/api/settings/key/maintenanceMode');
         

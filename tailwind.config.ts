@@ -127,6 +127,11 @@ export default {
           "0%": { transform: "rotate(0deg)" },
           "100%": { transform: "rotate(360deg)" },
         },
+        "scanner-line": {
+          "0%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(100vh)" },
+          "100%": { transform: "translateY(0)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -139,6 +144,7 @@ export default {
         wiggle: "wiggle 1s ease-in-out",
         "pulse-slow": "pulse-slow 4s cubic-bezier(0.4, 0, 0.6, 1) infinite",
         "spin-slow": "spin-slow 3s linear infinite",
+        "scanner-line": "scanner-line 15s cubic-bezier(0.4, 0, 0.2, 1) infinite",
       },
     },
   },

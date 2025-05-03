@@ -233,113 +233,158 @@ const AdminRoles = () => {
 
   return (
     <AdminLayout title="Role Management" description="Create and manage system roles">
-      <div className="container mx-auto py-6 space-y-6">
-        <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold">Role Management</h1>
+      <div className="space-y-6 relative">
+        {/* Background effects */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
+          <div className="absolute -top-10 right-20 w-80 h-80 bg-indigo-600/10 rounded-full filter blur-3xl opacity-30 animate-blob animation-delay-2000"></div>
+          <div className="absolute bottom-40 -left-20 w-72 h-72 bg-blue-600/10 rounded-full filter blur-3xl opacity-20 animate-blob"></div>
+        </div>
+        
+        {/* Header section with improved styling */}
+        <div className="flex flex-col lg:flex-row gap-4 lg:items-center lg:justify-between">
+          <div className="space-y-1">
+            <h2 className="text-2xl md:text-3xl font-bold tracking-tight bg-gradient-to-br from-white to-slate-400 bg-clip-text text-transparent">
+              Role Management
+            </h2>
+            <p className="text-slate-400 md:text-base max-w-3xl">
+              Create and manage system roles and their associated permissions.
+            </p>
+          </div>
+
           <Button 
             onClick={() => setIsCreateModalOpen(true)}
-            className="flex items-center gap-2"
+            className="bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white border-0 shadow-md hover:shadow-xl transition-all duration-200 hover:scale-105 self-start lg:self-auto"
           >
-            <PlusCircle className="h-4 w-4" />
+            <PlusCircle className="h-4 w-4 mr-2" />
             Create Role
           </Button>
         </div>
 
         {/* Role list card */}
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex justify-between items-center">
-              <div>
-                <CardTitle className="text-2xl">Roles</CardTitle>
-                <CardDescription>
-                  Manage system roles and their permissions
-                </CardDescription>
-              </div>
-              <div className="relative w-64">
-                <SearchIcon className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search roles..."
-                  className="pl-8"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
+        <Card className="overflow-hidden border-slate-200/10 bg-slate-900/50 backdrop-blur-xl shadow-xl rounded-xl">
+          <CardHeader className="pb-3 border-b border-slate-800/60 bg-slate-900/60">
+            <div className="flex flex-col md:flex-row justify-between gap-4 md:items-center">
+              <CardTitle className="text-slate-200 text-xl">
+                System Roles
+              </CardTitle>
+              <div className="relative w-full md:w-64 lg:w-72 group">
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-600/5 to-indigo-600/5 opacity-0 group-hover:opacity-100 rounded-lg transition-opacity duration-300"></div>
+                <div className="relative flex items-center">
+                  <SearchIcon className="h-5 w-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 group-hover:text-indigo-400 transition-colors duration-200" />
+                  <Input
+                    placeholder="Search roles..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 bg-slate-800/50 border-slate-700/50 text-slate-300 placeholder:text-slate-500 focus:border-indigo-500/50 focus:ring-indigo-500/20 transition-all duration-200"
+                  />
+                </div>
               </div>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-0">
             {rolesLoading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <div className="h-60 flex justify-center items-center">
+                <div className="flex flex-col items-center">
+                  <div className="relative">
+                    <div className="h-16 w-16 rounded-full border-t-4 border-l-4 border-indigo-500 animate-spin"></div>
+                    <ShieldCheck className="h-6 w-6 text-indigo-500 absolute inset-0 m-auto" />
+                  </div>
+                  <p className="mt-4 text-slate-400">Loading roles...</p>
+                </div>
               </div>
-            ) : roles.length === 0 ? (
-              <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  No roles found. Create your first role to get started.
-                </AlertDescription>
-              </Alert>
+            ) : filteredRoles.length === 0 ? (
+              <div className="h-60 flex flex-col justify-center items-center">
+                <AlertCircle className="h-12 w-12 text-slate-400 mb-3" />
+                <span className="text-slate-400 text-lg">No roles found</span>
+                <span className="text-sm text-slate-500 mt-1">Try adjusting your search</span>
+              </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Permissions</TableHead>
-                    <TableHead className="w-24 text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredRoles.map((role) => (
-                    <TableRow key={role.id}>
-                      <TableCell className="font-medium">{role.name}</TableCell>
-                      <TableCell>{role.description || "-"}</TableCell>
-                      <TableCell>
-                        {role.permissions && role.permissions.length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            <Badge variant="outline" className="flex items-center gap-1">
-                              <ShieldCheck className="h-3 w-3" />
-                              {role.permissions.length}
-                            </Badge>
+              <div className="divide-y divide-slate-800/50">
+                {filteredRoles.map((role) => (
+                  <div key={role.id} className="group p-5 hover:bg-indigo-600/5 transition-colors duration-200 animate-fadeIn">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="space-y-1">
+                        <h3 className="text-slate-200 font-medium group-hover:text-white transition-colors duration-200 flex items-center">
+                          <div className="h-8 w-8 mr-3 rounded-lg bg-indigo-600/20 flex items-center justify-center text-indigo-400 group-hover:bg-indigo-600/30 group-hover:text-indigo-300 transition-all duration-200">
+                            <ShieldCheck className="h-4 w-4" />
                           </div>
+                          {role.name}
+                        </h3>
+                        <p className="text-slate-400 text-sm group-hover:text-slate-300 transition-colors duration-200">
+                          {role.description || "No description available"}
+                        </p>
+                      </div>
+                      
+                      <div className="flex items-center gap-2 sm:self-start">
+                        <div className="flex -space-x-2 mr-4">
+                          {[...Array(Math.min(3, role.permissions?.length || 0))].map((_, idx) => (
+                            <div 
+                              key={idx} 
+                              className="h-8 w-8 rounded-full flex items-center justify-center text-xs bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 shadow-sm text-indigo-300"
+                              title={permissions.find(p => p.id === role.permissions[idx])?.name}
+                            >
+                              P
+                            </div>
+                          ))}
+                          {(role.permissions?.length || 0) > 3 && (
+                            <div className="h-8 w-8 rounded-full flex items-center justify-center text-xs bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 shadow-sm text-indigo-300">
+                              +{(role.permissions?.length || 0) - 3}
+                            </div>
+                          )}
+                        </div>
+                        
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleOpenViewModal(role)}
+                          className="h-8 w-8 bg-slate-800/80 border border-slate-700/50 text-slate-400 hover:text-indigo-300 hover:bg-indigo-600/20 hover:border-indigo-500/50 transition-all duration-200 rounded-lg"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                            <circle cx="12" cy="12" r="3" />
+                          </svg>
+                        </Button>
+                        
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleOpenEditModal(role)}
+                          className="h-8 w-8 bg-slate-800/80 border border-slate-700/50 text-slate-400 hover:text-indigo-300 hover:bg-indigo-600/20 hover:border-indigo-500/50 transition-all duration-200 rounded-lg"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteRole(role)}
+                          className="h-8 w-8 bg-slate-800/80 border border-slate-700/50 text-rose-400 hover:text-rose-300 hover:bg-rose-600/20 hover:border-rose-500/50 transition-all duration-200 rounded-lg"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-4">
+                      <div className="flex flex-wrap gap-1.5">
+                        {role.permissions?.length > 0 ? (
+                          getPermissionNames(role.permissions).map((permission, idx) => (
+                            <Badge 
+                              key={idx} 
+                              variant="outline" 
+                              className="bg-indigo-600/10 text-indigo-300 border-indigo-700/50 group-hover:bg-indigo-600/20 transition-colors duration-200"
+                            >
+                              {permission}
+                            </Badge>
+                          ))
                         ) : (
-                          <span className="text-muted-foreground">No permissions</span>
+                          <span className="text-slate-500 text-sm italic">No permissions assigned</span>
                         )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => handleOpenViewModal(role)}
-                            >
-                              <Users className="mr-2 h-4 w-4" />
-                              <span>View Details</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => handleOpenEditModal(role)}
-                            >
-                              <Pencil className="mr-2 h-4 w-4" />
-                              <span>Edit</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              onClick={() => handleDeleteRole(role)}
-                              className="text-red-600"
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              <span>Delete</span>
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </CardContent>
         </Card>
